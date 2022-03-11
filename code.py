@@ -291,7 +291,7 @@ def main():
     else:
       current_sat = 0
 
-        # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
+    # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
     current_datetime = calc_datetime(time.time())
 
     if last_utc_time != current_datetime.utc_time:
@@ -310,7 +310,7 @@ def main():
       tz_date_text.text = current_datetime.tz_date
       last_tz_date = current_datetime.tz_date
 
-        # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
+    # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
     current_grid_sq = calc_position(35.5844,-78.5171)
 
     if last_lat != current_lat:
@@ -327,7 +327,7 @@ def main():
       grid_text.text = current_grid_sq
       last_grid_sq = current_grid_sq
 
-        # UPDATE ALTITUDE LABEL IF DATA HAS CHANGED
+    # UPDATE ALTITUDE LABEL IF DATA HAS CHANGED
     if last_alt != current_alt:
       alt_feet = int(current_alt * 3.28084)
       meter_pad_length = 5 - len(str(current_alt))
@@ -335,7 +335,7 @@ def main():
       alt_text.text = 'Alt: ' + ' '*feet_pad_length + str(alt_feet) + ' FT ' + ' '*meter_pad_length + str(current_alt) + ' M'
       last_alt = current_alt
 
-        # UPDATE SPEED AND TRACK ANGLE LABEL IF DATA HAS CHANGED
+    # UPDATE SPEED AND TRACK ANGLE LABEL IF DATA HAS CHANGED
     if (last_speed != current_speed) or (last_angle != current_angle):
       speed_pad_length = 5 - len(str(current_speed))
       last_speed = current_speed
@@ -344,12 +344,12 @@ def main():
       last_angle = current_angle
       move_text.text = 'Spd: ' + ' '*speed_pad_length + str(current_speed) + ' Ang: ' + ' '*angle_pad_length + str(current_angle)
 
-        # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
+    # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
     if last_sat != current_sat:
       sat_count_text.text = 'Satellites: ' + str(current_sat)
       last_sat = current_sat
 
-        # CHECK MAGNETOMETER AND UPDATE LABEL IS DATA HAS CHANGED
+    # CHECK MAGNETOMETER AND UPDATE LABEL IS DATA HAS CHANGED
     x, y, z = compass.magnetic
 
     if y > 0:
@@ -378,7 +378,7 @@ def main():
       compass_text.text = ' '*pad_length + current_compass
       last_compass = current_compass
 
-        # CHECK BATTERY VOLTAGE AND CALCULATE PERCENTAGE OF CHARGE
+    # CHECK BATTERY VOLTAGE AND CALCULATE PERCENTAGE OF CHARGE
     current_battery_time = time.monotonic()
 
     if (current_battery_time - last_battery_time) > 30:
