@@ -64,7 +64,7 @@ grid_lower = 'abcdefghijklmnopqrstuvwx'
 battery_list_elements = 10
 
 # ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE (0%, 10%, 20%...)
-battery_level = (7000, 12000, 13800, 14000)
+battery_level = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
 # CREATE COLOR GRADIENT AND PALETTE FOR BATTERY GAUGE
 battery_gradient = [(0.0, 0xFF0000), (0.25, 0xFF7F00), (0.50, 0xFFFF00), (0.75, 0x00FF00)]
@@ -394,9 +394,9 @@ def main():
       battery_average = battery_average / battery_list_elements
       current_battery_percent = 0
 
-      for percent in range(3, 1, -1):
+      for percent in range(10, 1, -1):
         if battery_average <= battery_level[percent] and battery_average > battery_level[percent - 1]:
-          current_battery_percent = (percent + 1) * 25
+          current_battery_percent = (percent + 1) * 10
           break
 
       # UPDATE BATTERY GAUGE IF PERCENTAGE HAS CHANGED
@@ -404,5 +404,7 @@ def main():
         battery_progress_bar.bar_color = battery_colors[current_battery_percent - 1]
         battery_progress_bar.value = current_battery_percent
         last_battery_percent = current_battery_percent
+
+    serial.reset_input_buffer()
 
 main()
