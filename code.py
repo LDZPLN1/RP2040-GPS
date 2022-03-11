@@ -29,7 +29,7 @@ i2c = board.I2C()
 compass = adafruit_lsm303dlh_mag.LSM303DLH_Mag(i2c)
 
 # SETUP ADC FOR BATTERY MONITORING
-battery = analogio.AnalogIn(board.A1)
+battery = analogio.AnalogIn(board.A0)
 
 # DISPLAY SPLASH LOGO
 bitmap = displayio.OnDiskBitmap('/images/ab9xa.bmp')
