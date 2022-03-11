@@ -7,4 +7,4 @@ UTC and local clock is set via GPS data.  Software then calculates the current M
 
 DST is automatically calculated for local timezone.
 
-Designed to get time/date/lat/lon/grid withut any internet access as a stand alone device.
+Designed to get time/date/lat/lon/grid without any internet access as a stand alone device.
