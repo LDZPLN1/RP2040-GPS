@@ -1,3 +1,21 @@
+# HAM RADIO GPS
+# 2022 DOUGLAS GRAHAM, AB9XA
+#
+# SELF CONTAINED CLOCK, GPS, COMPASS AND ALTIMETER
+# DISPLAYS TIME IN UTC AND LOCAK
+# DISPLAYS CURRENT MAIDENHEAD GRID SQUARE BASED ON GPS LOCATION
+#
+# HARDWARE:
+#
+# ADAFRUIT FEATHER RP2040
+# BN-880 GPS WITH MAGNETOMETER - USES U-BLOX 8 SERIES CHIPSET
+# 128X128 SSD1351 BASED OLED DISPLAY
+# 3,000 MAH LIPO BATTERY
+#
+# AVERAGE RUNTIME IS 20 HOURS
+#
+# NOTE: OLED DISPLAY IS NOT ADVISABLE FOR OUTDOOR/SUNLIT VIEWING
+
 import analogio
 import board
 import busio
@@ -22,7 +40,7 @@ version = '1.1'
 # USER ADJUSTABLE VARIABLES LISTED BELOW                       #
 ################################################################
 
-# DST START / END (MONTH, WEEK, DAY, HOUR)
+# DST START / END (MONTH, WEEK, DAY, HOUR) / OFFSET IN MINUTES
 dst_start = (3,2,6,2)
 dst_end = (11,1,6,2)
 dst_offset = 3600
@@ -36,16 +54,19 @@ offset_x_axis = 10.6818
 offset_y_axis = 1.90909
 declination = -6
 
-# MAGNETOMETER ORIENTATION - BN-880 HAS X AND Y AXIS FLIPPED
+# MAGNETOMETER ORIENTATION
+# BN-880 GPS HAS X AND Y AXIS FLIPPED (N/S E/W READINGS ARE BACKWARDS)
+# BN-880 X AND Y AXIS ARE ROTATED 90 DEGREES
 flip_x_axis = True
 flip_y_axis = True
+swap_axis = True
 
 # STARTUP LOGO
 startup_logo = '/images/ab9xa.bmp'
 
 # TEXT COLOR SETUP
 clock_color = 0x00FF00
-comp_color = 0xFFFF00
+compass_color = 0xFFFF00
 date_color = 0x0000FF
 gps_dark_color = 0x7F0000
 gps_read_color = 0x00FF00
@@ -60,9 +81,9 @@ bat_smoothing = 4
 # END OF USER ADJUSTABLE VARIABLES                             #
 ################################################################
 
-# ARRAYS FOR DATE, MONTH TEXT
+# ARRAYS FOR DAY AND MONTH TEXT
 day_text = ('MON','TUE','WED','THU','FRI','SAT','SUN')
-month_text = ('','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC')
+month_text = ('JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC')
 
 # COMPASS DATA
 comp_angle = (11.25, 33.75, 56.25, 78.75, 101.25, 123.75, 146.25, 168.75, 191.25, 213.75, 236.25, 258.75, 281.25, 303.75, 326.25, 348.75)
@@ -74,9 +95,10 @@ grid_lower = 'abcdefghijklmnopqrstuvwx'
 
 # ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE
 bat_curve = (43300, 43700, 45000, 45700, 46100, 46500, 47400, 48600, 50000, 51400, 54000)
-bat_readings = []
 
 # SEND UBX MESSAGES TO GPS
+# WAITS FOR ACK/NAK, RETRANSMITS ON FAILED RESPONSE
+# RETURNS TRUE FOR ACK, FALSE FOR NAK
 def ubx_send(msg_type, msg_class, msg_payload):
   msg_len = len(msg_class) + len(msg_payload)
   msg_base = msg_type + msg_len.to_bytes(2, 'little') + msg_class + msg_payload
@@ -92,6 +114,7 @@ def ubx_send(msg_type, msg_class, msg_payload):
     serial.reset_input_buffer()
     serial.write(msg_out)
     msg_res = serial.read(10)
+    time.sleep(0.1)
 
     if msg_res == msg_ack:
       return True
@@ -154,7 +177,7 @@ class comp_date_time:
       dst_active = False
 
     # FORMAT UTC DATA
-    self.utc_date = '{} {} {:02d}, {}'.format(day_text[time_utc_tuple[6]],month_text[time_utc_tuple[1]],time_utc_tuple[2],time_utc_tuple[0])
+    self.utc_date = '{} {} {:02d}, {}'.format(day_text[time_utc_tuple[6]],month_text[time_utc_tuple[1] - 1],time_utc_tuple[2],time_utc_tuple[0])
     self.utc_time = '{:02d}:{:02d}:{:02d} UTC'.format(time_utc_tuple[3],time_utc_tuple[4],time_utc_tuple[5])
 
     # CALCULATE TIMEZONE TIME AND DATE
@@ -162,7 +185,7 @@ class comp_date_time:
     time_tz_tuple = time.localtime(time_tz_secs)
 
     # FORMAT TIMEZONE DATA
-    self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]],month_text[time_tz_tuple[1]],time_tz_tuple[2],time_tz_tuple[0])
+    self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]],month_text[time_tz_tuple[1] - 1],time_tz_tuple[2],time_tz_tuple[0])
     self.tz_time = '{:02d}:{:02d}:{:02d} {}'.format(time_tz_tuple[3],time_tz_tuple[4],time_tz_tuple[5],timezone_desc[dst_active])
 
 # CALCULATE MAIDENHEAD GRID SQUARE BASED ON CURRENT LAT / LON
@@ -192,14 +215,17 @@ def comp_degree(x_axis, y_axis):
   if flip_y_axis:
     y_axis *= -1
 
-  if (x_axis == 0) and (y_axis > 0):
+  if swap_axis:
+    x_axis, y_axis = y_axis, x_axis
+
+  if (x_axis > 0) and (y_axis == 0):
     angle = declination
-  elif (x_axis == 0) and (y_axis < 0):
+  elif (x_axis < 0) and (y_axis == 0):
     angle = 180 + declination
-  elif x_axis > 0:
-    angle = 90 - math.atan(y_axis/x_axis) * 180 / math.pi + declination
-  elif x_axis < 0:
-    angle = 270 - math.atan(y_axis/x_axis) * 180 / math.pi + declination
+  elif y_axis > 0:
+    angle = 90 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
+  elif y_axis < 0:
+    angle = 270 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
 
   if angle < 0:
     angle += 360
@@ -256,6 +282,7 @@ comp = adafruit_lsm303dlh_mag.LSM303DLH_Mag(i2c)
 
 # SETUP ADC FOR BATTERY MONITORING
 bat = analogio.AnalogIn(board.A0)
+bat_readings = []
 
 # DISPLAY SPLASH LOGO
 bitmap = displayio.OnDiskBitmap(startup_logo)
@@ -276,14 +303,14 @@ for i in range(100):
 font = terminalio.FONT
 
 # REMOVE SPLASH LOGO
-time.sleep(2.0)
+time.sleep(1.0)
 disp_group.remove(tile_grid)
 
 # DISPLAY VERSION
 startup_text_default = '     Version ' + version + '     '
 startup_text = label.Label(font, text=startup_text_default, color=0xFFB000, x=0, y=60)
 disp_group.append(startup_text)
-time.sleep(2.0)
+time.sleep(1.0)
 
 # CONFIGURE GPS
 startup_text.text = '   Configuring GPS   '
@@ -305,30 +332,34 @@ cls_gsa = bytes([0xF0, 0x02])
 cls_gsv = bytes([0xF0, 0x03])
 cls_vtg = bytes([0xF0, 0x05])
 
+# CONFIGURE UART
 serial = busio.UART(board.TX, board.RX, baudrate=38400, timeout=1, receiver_buffer_size=256)
 
+# DISABLE NMEA GLL, GSA, GSV AND VTG MESSAGES, ONLY RMC AND GGA ARE NEEDED
+# ENABLING MORE MESSAGES THAN NEEDED CAN CAUSE SERIAL BUFFER OVERRUNS AND DEVICE LOCKUPS
 payload = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
 
-result = ubx_send (cfg_msg, cls_gll, payload)
-time.sleep(.1)
+while not ubx_send(cfg_msg, cls_gll, payload):
+  time.sleep(.1)
 
-result = ubx_send (cfg_msg, cls_gsa, payload)
-time.sleep(.1)
+while not ubx_send(cfg_msg, cls_gsa, payload):
+  time.sleep(.1)
 
-result = ubx_send (cfg_msg, cls_gsv, payload)
-time.sleep(.1)
+while not ubx_send(cfg_msg, cls_gsv, payload):
+  time.sleep(.1)
 
-result = ubx_send (cfg_msg, cls_vtg, payload)
+while not ubx_send(cfg_msg, cls_vtg, payload):
+  time.sleep(0.1)
 
-# WAIT FOR INITIAL GPS FIX
 startup_text.text = ' Waiting For GPS Fix '
 counter_gps = 0
 counter_text = label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=105, y=123)
 disp_group.append(counter_text)
 
-# SETUP UART AND GPS
+# SETUP GPS DECODING
 gps = adafruit_gps.GPS(serial, debug=False)
 
+# WAIT FOR INITIAL GPS FIX
 while not gps.has_fix:
   gps.update()
   counter_gps += 1
@@ -336,6 +367,8 @@ while not gps.has_fix:
   time.sleep(0.5)
 
 startup_text.text = 'Waiting For Time Sync'
+
+# WAIT FOR VALID TIME DATA TO SET RTC
 date_valid = False
 
 while not date_valid:
@@ -348,6 +381,7 @@ while not date_valid:
 
   time.sleep(0.5)
 
+# SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
 disp_group.remove(counter_text)
 disp_group.remove(startup_text)
@@ -432,7 +466,7 @@ sat_count_text = label.Label(font, text=default_sat_count_text, color=sat_color,
 disp_group.append(sat_count_text)
 
 default_comp_text = '---'
-comp_text = label.Label(font, text=default_comp_text, color=comp_color, x=111, y=123)
+comp_text = label.Label(font, text=default_comp_text, color=compass_color, x=111, y=123)
 disp_group.append(comp_text)
 
 def main():
@@ -451,6 +485,7 @@ def main():
   last_speed = -1
   last_track = -1
 
+  # PRELOAD BATTERY READING ARRAY FOR SMOOTHING - FIFO QUEUE
   for i in range(bat_smoothing):
     bat_readings.append(bat.value)
 
@@ -470,6 +505,7 @@ def main():
       else:
         curr_alt = 0
 
+      # CONVERTS FROM KNOTS TO MPH
       if gps.speed_knots is not None:
         curr_speed = gps.speed_knots * 1.15078
       else:
@@ -548,7 +584,7 @@ def main():
       last_sat = curr_sat
       sat_count_text.text = 'Satellites: ' + str(curr_sat)
 
-    # CHECK MAGNETOMETER AND UPDATE LABEL IS DATA HAS CHANGED
+    # CHECK MAGNETOMETER AND UPDATE LABEL IF DATA HAS CHANGED
     x, y, _ = comp.magnetic
 
     curr_angle = comp_degree(x, y)
@@ -559,10 +595,10 @@ def main():
       pad_length = 3 - len(curr_comp)
       comp_text.text = ' '*pad_length + curr_comp
 
-    # CHECK BATTERY VOLTAGE AND CALCULATE PERCENTAGE OF CHARGE
+    # CHECK BATTERY VOLTAGE EVERY 15 SECONDS AND CALCULATE PERCENTAGE OF CHARGE
     curr_bat_time = time.monotonic()
 
-    if (curr_bat_time - last_bat_time) > 15:
+    if (curr_bat_time - last_bat_time) >= 15:
       last_bat_time = curr_bat_time
       curr_bat_percent = bat_level()
 
