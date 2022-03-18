@@ -96,43 +96,6 @@ grid_lower = 'abcdefghijklmnopqrstuvwx'
 # ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE
 bat_curve = (43300, 43700, 45000, 45700, 46100, 46500, 47400, 48600, 50000, 51400, 54000)
 
-# SEND UBX MESSAGES TO GPS
-# WAITS FOR ACK/NAK, RETRANSMITS ON FAILED RESPONSE
-# RETURNS TRUE FOR ACK, FALSE FOR NAK
-def ubx_send(msg_type, msg_class, msg_payload):
-  msg_len = len(msg_class) + len(msg_payload)
-  msg_base = msg_type + msg_len.to_bytes(2, 'little') + msg_class + msg_payload
-  msg_out = ubx_header + msg_base + ubx_checksum(msg_base)
-
-  msg_ackx = ubx_ack + len(msg_type).to_bytes(2, 'little') + msg_type
-  msg_ack = ubx_header + msg_ackx + ubx_checksum(msg_ackx)
-
-  msg_nakx = ubx_nak + len(msg_type).to_bytes(2, 'little') + msg_type
-  msg_nak = ubx_header + msg_nakx + ubx_checksum(msg_nakx)
-
-  while True:
-    serial.reset_input_buffer()
-    serial.write(msg_out)
-    msg_res = serial.read(10)
-    time.sleep(0.1)
-
-    if msg_res == msg_ack:
-      return True
-    elif msg_res == msg_nak:
-      return False
-
-# CALCULATE CHECKSUMS FOR UBX MESSAGES
-def ubx_checksum(msg):
-  cs_a = 0x00
-  cs_b = 0x00
-
-  for i in range(len(msg)):
-    cs_a += msg[i]
-    cs_b += cs_a
-
-  checksum = (cs_a & 255).to_bytes(1, 'big') + (cs_b & 255).to_bytes(1, 'big')
-  return checksum
-
 # CALCULATE AND FORMAT UTC TIME, UTC DATE, TIMEZONE TIME AND TIMEZONE DATE. CALCULATE DST
 class comp_date_time:
   def __init__ (self, base_time_secs):
@@ -187,6 +150,43 @@ class comp_date_time:
     # FORMAT TIMEZONE DATA
     self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]],month_text[time_tz_tuple[1] - 1],time_tz_tuple[2],time_tz_tuple[0])
     self.tz_time = '{:02d}:{:02d}:{:02d} {}'.format(time_tz_tuple[3],time_tz_tuple[4],time_tz_tuple[5],timezone_desc[dst_active])
+
+# SEND UBX MESSAGES TO GPS
+# WAITS FOR ACK/NAK, RETRANSMITS ON FAILED RESPONSE
+# RETURNS TRUE FOR ACK, FALSE FOR NAK
+def ubx_send(msg_type, msg_class, msg_payload):
+  msg_len = len(msg_class) + len(msg_payload)
+  msg_base = msg_type + msg_len.to_bytes(2, 'little') + msg_class + msg_payload
+  msg_out = ubx_header + msg_base + ubx_checksum(msg_base)
+
+  msg_ackx = ubx_ack + len(msg_type).to_bytes(2, 'little') + msg_type
+  msg_ack = ubx_header + msg_ackx + ubx_checksum(msg_ackx)
+
+  msg_nakx = ubx_nak + len(msg_type).to_bytes(2, 'little') + msg_type
+  msg_nak = ubx_header + msg_nakx + ubx_checksum(msg_nakx)
+
+  while True:
+    serial.reset_input_buffer()
+    serial.write(msg_out)
+    msg_res = serial.read(10)
+    time.sleep(0.1)
+
+    if msg_res == msg_ack:
+      return True
+    elif msg_res == msg_nak:
+      return False
+
+# CALCULATE CHECKSUMS FOR UBX MESSAGES
+def ubx_checksum(msg):
+  cs_a = 0x00
+  cs_b = 0x00
+
+  for i in range(len(msg)):
+    cs_a += msg[i]
+    cs_b += cs_a
+
+  checksum = (cs_a & 255).to_bytes(1, 'big') + (cs_b & 255).to_bytes(1, 'big')
+  return checksum
 
 # CALCULATE MAIDENHEAD GRID SQUARE BASED ON CURRENT LAT / LON
 def calc_grid (latitude, longitude):
@@ -273,7 +273,7 @@ clock = rtc.RTC()
 # SETUP OLED DISPLAY
 displayio.release_displays()
 spi = board.SPI()
-disp_bus = displayio.FourWire(spi, command=board.D24, chip_select=board.D25, reset=board.D4, baudrate=18000000)
+disp_bus = displayio.FourWire(spi, command=board.D24, chip_select=board.D25, reset=board.D4, baudrate=60000000)
 disp = SSD1351(disp_bus, width=128, height=128)
 
 # SETUP MAGNETOMETER
@@ -380,6 +380,8 @@ while not date_valid:
     date_valid=True
 
   time.sleep(0.5)
+
+serial.reset_input_buffer()
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
@@ -505,7 +507,7 @@ def main():
       else:
         curr_alt = 0
 
-      # CONVERTS FROM KNOTS TO MPH
+      # CONVERT FROM KNOTS TO MPH
       if gps.speed_knots is not None:
         curr_speed = gps.speed_knots * 1.15078
       else:
@@ -520,6 +522,50 @@ def main():
         curr_sat = gps.satellites
       else:
         curr_sat = 0
+
+      # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
+      curr_grid_sq = calc_grid(curr_lat, curr_lon)
+
+      if last_lat != curr_lat:
+        last_lat = curr_lat
+        pad_length = 8 - len('{0:.4f}'.format(curr_lat))
+        lat_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lat)
+
+      if last_lon != curr_lon:
+        last_lon = curr_lon
+        pad_length = 9 - len('{0:.4f}'.format(curr_lon))
+        lon_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lon)
+
+      if last_grid_sq != curr_grid_sq:
+        last_grid_sq = curr_grid_sq
+        grid_text.text = curr_grid_sq
+
+      # UPDATE ALTITUDE LABELS IF DATA HAS CHANGED
+      if last_alt != curr_alt:
+        last_alt = curr_alt
+        alt_feet = int(curr_alt * 3.28084)
+        meter_pad_length = 5 - len(str(curr_alt))
+        feet_pad_length = 5 - len(str(alt_feet))
+        alt_ft_text.text = ' '*feet_pad_length + str(alt_feet) + ' FT '
+        alt_m_text.text = ' '*meter_pad_length + str(curr_alt) + ' M'
+
+      # UPDATE SPEED AND TRACK ANGLE LABELS IF DATA HAS CHANGED
+      if last_speed != curr_speed:
+        last_speed = curr_speed
+        speed = '{0:.1f}'.format(curr_speed)
+        speed_pad_length = 5 - len(speed)
+        speed_text.text = ' '*speed_pad_length + speed
+
+      if last_track != curr_track:
+        last_track = curr_track
+        track = '{0:.1f}'.format(curr_track)
+        track_pad_length = 5 - len(track)
+        track_text.text = ' '*track_pad_length + track
+
+      # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
+      if last_sat != curr_sat:
+        last_sat = curr_sat
+        sat_count_text.text = 'Satellites: ' + str(curr_sat)
 
     # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
     curr_datetime = comp_date_time(time.time())
@@ -539,50 +585,6 @@ def main():
     if last_tz_date != curr_datetime.tz_date:
       last_tz_date = curr_datetime.tz_date
       tz_date_text.text = curr_datetime.tz_date
-
-    # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
-    curr_grid_sq = calc_grid(curr_lat, curr_lon)
-
-    if last_lat != curr_lat:
-      last_lat = curr_lat
-      pad_length = 8 - len('{0:.4f}'.format(curr_lat))
-      lat_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lat)
-
-    if last_lon != curr_lon:
-      last_lon = curr_lon
-      pad_length = 9 - len('{0:.4f}'.format(curr_lon))
-      lon_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lon)
-
-    if last_grid_sq != curr_grid_sq:
-      last_grid_sq = curr_grid_sq
-      grid_text.text = curr_grid_sq
-
-    # UPDATE ALTITUDE LABELS IF DATA HAS CHANGED
-    if last_alt != curr_alt:
-      last_alt = curr_alt
-      alt_feet = int(curr_alt * 3.28084)
-      meter_pad_length = 5 - len(str(curr_alt))
-      feet_pad_length = 5 - len(str(alt_feet))
-      alt_ft_text.text = ' '*feet_pad_length + str(alt_feet) + ' FT '
-      alt_m_text.text = ' '*meter_pad_length + str(curr_alt) + ' M'
-
-    # UPDATE SPEED AND TRACK ANGLE LABELS IF DATA HAS CHANGED
-    if last_speed != curr_speed:
-      last_speed = curr_speed
-      speed = '{0:.1f}'.format(curr_speed)
-      speed_pad_length = 5 - len(speed)
-      speed_text.text = ' '*speed_pad_length + speed
-
-    if last_track != curr_track:
-      last_track = curr_track
-      track = '{0:.1f}'.format(curr_track)
-      track_pad_length = 5 - len(track)
-      track_text.text = ' '*track_pad_length + track
-
-    # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
-    if last_sat != curr_sat:
-      last_sat = curr_sat
-      sat_count_text.text = 'Satellites: ' + str(curr_sat)
 
     # CHECK MAGNETOMETER AND UPDATE LABEL IF DATA HAS CHANGED
     x, y, _ = comp.magnetic
