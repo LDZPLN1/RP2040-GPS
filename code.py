@@ -68,8 +68,8 @@ startup_logo = '/images/ab9xa.bmp'
 clock_color = 0x00FF00
 compass_color = 0xFFFF00
 date_color = 0x0000FF
-gps_dark_color = 0x7F0000
-gps_read_color = 0x00FF00
+gps_dark_color = 0x000000
+gps_read_color = 0x00FFFF
 grid_color = 0xFFFF00
 location_color = 0x00FF00
 sat_color = 0xFF00FF
@@ -303,7 +303,7 @@ for i in range(100):
 font = terminalio.FONT
 
 # REMOVE SPLASH LOGO
-time.sleep(1.0)
+time.sleep(1.5)
 disp_group.remove(tile_grid)
 
 # DISPLAY VERSION
@@ -369,6 +369,7 @@ while not gps.has_fix:
 startup_text.text = 'Waiting For Time Sync'
 
 # WAIT FOR VALID TIME DATA TO SET RTC
+serial.reset_input_buffer()
 date_valid = False
 
 while not date_valid:
@@ -430,8 +431,8 @@ default_lon_text = '         '
 lon_text = label.Label(font, text=default_lon_text, color=location_color, x=29, y=71)
 disp_group.append(lon_text)
 
-default_gps_update_text = '(-#-)'
-gps_update_text = label.Label(font, text=default_gps_update_text, color=gps_dark_color, x=96, y=71)
+default_gps_update_text = '#'
+gps_update_text = label.Label(font, text=default_gps_update_text, color=gps_dark_color, x=123, y=71)
 disp_group.append(gps_update_text)
 
 default_alt_label = 'Alt:'
