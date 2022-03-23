@@ -15,6 +15,18 @@
 # AVERAGE RUNTIME IS 20 HOURS
 #
 # NOTE: OLED DISPLAY IS NOT ADVISABLE FOR OUTDOOR/SUNLIT VIEWING
+#
+# PINS:
+# A0    ANALOG INPUT TO MEASURE BATTERY VOLTAGE
+# SCK   SPI CLOCK FOR DISPLAY
+# MOSI  SPI DATA OUT FOR DISPLAY
+# TX    UART TX FOR GPS
+# RX    UART RX FOR GPS
+# SDA   I2C DATA FOR MAGNETOMETER
+# SCL   I2C CLOCK FOR MAGNETOMETER
+# D25   DIGITAL OUTPUT - DISPLAY CHIP SELECT
+# D24   DIGITAL OUTPUT - DISPLAY DATA/COMMAND
+# D4    DIGITAL OUTPUT - DISPLAY RESET
 
 import analogio
 import board
@@ -29,12 +41,12 @@ import adafruit_fancyled.adafruit_fancyled as fancy
 import adafruit_gps
 import adafruit_lsm303dlh_mag
 
-from adafruit_display_text import label
+from adafruit_display_text import bitmap_label
 from adafruit_progressbar.horizontalprogressbar import (HorizontalProgressBar, HorizontalFillDirection)
 from adafruit_ssd1351 import SSD1351
 
 # VERSION
-version = '1.1'
+version = '1.2'
 
 ################################################################
 # USER ADJUSTABLE VARIABLES LISTED BELOW                       #
@@ -68,14 +80,22 @@ startup_logo = '/images/ab9xa.bmp'
 clock_color = 0x00FF00
 compass_color = 0xFFFF00
 date_color = 0x0000FF
-gps_dark_color = 0x000000
-gps_read_color = 0x00FFFF
+gps_color = 0x00FFFF
 grid_color = 0xFFFF00
 location_color = 0x00FF00
 sat_color = 0xFF00FF
 
-# NUMBER OF BATTERY READINGS TO USE FOR SMOOTHING
-bat_smoothing = 4
+# PIN LAYOUT
+pin_battery = board.A0
+pin_sck = board.SCK
+pin_mosi = board.MOSI
+pin_rx = board.RX
+pin_tx = board.TX
+pin_sda = board.SDA
+pin_scl = board.SCL
+pin_cs = board.D25
+pin_dc = board.D24
+pin_rst = board.D4
 
 ################################################################
 # END OF USER ADJUSTABLE VARIABLES                             #
@@ -169,12 +189,15 @@ def ubx_send(msg_type, msg_class, msg_payload):
     serial.reset_input_buffer()
     serial.write(msg_out)
     msg_res = serial.read(10)
-    time.sleep(0.1)
 
     if msg_res == msg_ack:
       return True
     elif msg_res == msg_nak:
       return False
+    elif msg_type == cfg_prt:
+      return None
+
+    time.sleep(0.1)
 
 # CALCULATE CHECKSUMS FOR UBX MESSAGES
 def ubx_checksum(msg):
@@ -250,18 +273,11 @@ def comp_direction(degrees):
 
 # CALCULATE BATTERY PERCENTAGE
 def bat_level():
-  bat_readings.pop(0)
-  bat_readings.append(bat.value)
-  bat_average = 0
-
-  for i in bat_readings:
-    bat_average += i
-
-  bat_average = bat_average / bat_smoothing
+  bat_current = bat.value
   bat_percent = 0
 
   for percent in range(10, 1, -1):
-    if bat_average <= bat_curve[percent] and bat_average > bat_curve[percent - 1]:
+    if bat_current <= bat_curve[percent] and bat_current > bat_curve[percent - 1]:
       bat_percent = percent * 10
       break
 
@@ -272,17 +288,18 @@ clock = rtc.RTC()
 
 # SETUP OLED DISPLAY
 displayio.release_displays()
-spi = board.SPI()
-disp_bus = displayio.FourWire(spi, command=board.D24, chip_select=board.D25, reset=board.D4, baudrate=60000000)
+spi = busio.SPI(pin_sck, MOSI=pin_mosi)
+disp_bus = displayio.FourWire(spi, command=pin_dc, chip_select=pin_cs, reset=pin_rst, baudrate=60000000)
 disp = SSD1351(disp_bus, width=128, height=128)
 
+font = terminalio.FONT
+
 # SETUP MAGNETOMETER
-i2c = board.I2C()
+i2c = busio.I2C(pin_scl, pin_sda)
 comp = adafruit_lsm303dlh_mag.LSM303DLH_Mag(i2c)
 
 # SETUP ADC FOR BATTERY MONITORING
-bat = analogio.AnalogIn(board.A0)
-bat_readings = []
+bat = analogio.AnalogIn(pin_battery)
 
 # DISPLAY SPLASH LOGO
 bitmap = displayio.OnDiskBitmap(startup_logo)
@@ -300,20 +317,18 @@ for i in range(100):
   color = fancy.palette_lookup(bat_palette, i / 100)
   bat_colors.append(color.pack())
 
-font = terminalio.FONT
-
 # REMOVE SPLASH LOGO
 time.sleep(1.5)
 disp_group.remove(tile_grid)
 
 # DISPLAY VERSION
 startup_text_default = '     Version ' + version + '     '
-startup_text = label.Label(font, text=startup_text_default, color=0xFFB000, x=0, y=60)
+startup_text = bitmap_label.Label(font, text=startup_text_default, color=0xFFB000, x=0, y=60)
 disp_group.append(startup_text)
 time.sleep(1.0)
 
 # CONFIGURE GPS
-startup_text.text = '   Configuring GPS   '
+startup_text.text = '   Configuring GPS'
 startup_text.color = 0x00FFFF
 
 # UBX HEADER
@@ -324,6 +339,7 @@ ubx_ack = bytes([0x05, 0x01])
 ubx_nak = bytes([0x05, 0x00])
 
 # UBX MESSAGE TYPES
+cfg_prt = bytes([0x06, 0x00])
 cfg_msg = bytes([0x06, 0x01])
 
 # UBX CLASS IDS
@@ -333,7 +349,7 @@ cls_gsv = bytes([0xF0, 0x03])
 cls_vtg = bytes([0xF0, 0x05])
 
 # CONFIGURE UART
-serial = busio.UART(board.TX, board.RX, baudrate=38400, timeout=1, receiver_buffer_size=256)
+serial = busio.UART(pin_tx, pin_rx, baudrate=38400, timeout=1, receiver_buffer_size=256)
 
 # DISABLE NMEA GLL, GSA, GSV AND VTG MESSAGES, ONLY RMC AND GGA ARE NEEDED
 # ENABLING MORE MESSAGES THAN NEEDED CAN CAUSE SERIAL BUFFER OVERRUNS AND DEVICE LOCKUPS
@@ -351,9 +367,9 @@ while not ubx_send(cfg_msg, cls_gsv, payload):
 while not ubx_send(cfg_msg, cls_vtg, payload):
   time.sleep(0.1)
 
-startup_text.text = ' Waiting For GPS Fix '
+startup_text.text = ' Waiting for GPS Fix'
 counter_gps = 0
-counter_text = label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=105, y=123)
+counter_text = bitmap_label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=105, y=123)
 disp_group.append(counter_text)
 
 # SETUP GPS DECODING
@@ -361,28 +377,22 @@ gps = adafruit_gps.GPS(serial, debug=False)
 
 # WAIT FOR INITIAL GPS FIX
 while not gps.has_fix:
-  gps.update()
-  counter_gps += 1
-  counter_text.text = '{:04d}'.format(counter_gps)
-  time.sleep(0.5)
+  if gps.update():
+    counter_gps += 1
+    counter_text.text = '{:04d}'.format(counter_gps)
 
 startup_text.text = 'Waiting For Time Sync'
 
 # WAIT FOR VALID TIME DATA TO SET RTC
-serial.reset_input_buffer()
 date_valid = False
 
 while not date_valid:
-  gps.update()
-  counter_gps += 1
-  counter_text.text = '{:04d}'.format(counter_gps)
+  if gps.update():
+    counter_gps += 1
+    counter_text.text = '{:04d}'.format(counter_gps)
 
-  if gps.timestamp_utc.tm_year != 0:
-    date_valid=True
-
-  time.sleep(0.5)
-
-serial.reset_input_buffer()
+    if gps.timestamp_utc.tm_year != 0:
+      date_valid=True
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
@@ -394,82 +404,73 @@ bat_progress_bar = HorizontalProgressBar((112, 0), (16, 8), value=0, min_value=0
 disp_group.append(bat_progress_bar)
 
 # DISPLAY TIME AND DATE FIELDS
-default_utc_clock_text = '00:00:00 UTC'
-utc_clock_text = label.Label(font, text=default_utc_clock_text, color=clock_color, x=0, y=3)
+utc_clock_text = bitmap_label.Label(font, text='            ', color=clock_color, x=0, y=3)
 disp_group.append(utc_clock_text)
 
-default_utc_date_text = 'SUN JAN 01, 2020'
-utc_date_text = label.Label(font, text=default_utc_date_text, color=date_color, x=0, y=15)
+utc_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=15)
 disp_group.append(utc_date_text)
 
-default_tz_clock_text = '00:00:00 ' + timezone_desc[0]
-tz_clock_text = label.Label(font, text=default_tz_clock_text, color=clock_color, x=0, y=31)
+tz_clock_text = bitmap_label.Label(font, text='            ', color=clock_color, x=0, y=31)
 disp_group.append(tz_clock_text)
 
-default_tz_date_text = 'SUN JAN 01, 2020'
-tz_date_text = label.Label(font, text=default_tz_date_text, color=date_color, x=0, y=43)
+tz_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=43)
 disp_group.append(tz_date_text)
 
 # DISPLAY LATITUDE / LONGITUDE / ALTITUDE / GRID / COMPASS FIELDS
-default_lat_label = 'Lat:'
-lat_label = label.Label(font, text=default_lat_label, color=location_color, x=0, y=59)
+lat_label = bitmap_label.Label(font, text='Lat:', color=location_color, x=0, y=59)
 disp_group.append(lat_label)
 
-default_lat_text = '        '
-lat_text = label.Label(font, text=default_lat_text, color=location_color, x=36, y=59)
+lat_text = bitmap_label.Label(font, text='        ', color=location_color, x=36, y=59)
 disp_group.append(lat_text)
 
-default_grid_text = '      '
-grid_text = label.Label(font, text=default_grid_text, color=grid_color, x=93, y=59)
+grid_text = bitmap_label.Label(font, text='      ', color=grid_color, x=93, y=59)
 disp_group.append(grid_text)
 
-default_lon_label = 'Lon:'
-lon_label = label.Label(font, text=default_lon_label, color=location_color, x=0, y=71)
+lon_label = bitmap_label.Label(font, text='Lon:', color=location_color, x=0, y=71)
 disp_group.append(lon_label)
 
-default_lon_text = '         '
-lon_text = label.Label(font, text=default_lon_text, color=location_color, x=29, y=71)
+lon_text = bitmap_label.Label(font, text='         ', color=location_color, x=29, y=71)
 disp_group.append(lon_text)
 
-default_gps_update_text = '#'
-gps_update_text = label.Label(font, text=default_gps_update_text, color=gps_dark_color, x=123, y=71)
+default_gps_update_text = ' '
+gps_update_text = bitmap_label.Label(font, text=default_gps_update_text, color=gps_color, x=123, y=71)
 disp_group.append(gps_update_text)
 
-default_alt_label = 'Alt:'
-alt_label = label.Label(font, text=default_alt_label, color=location_color, x=0, y=87)
+alt_label = bitmap_label.Label(font, text='Alt:', color=location_color, x=0, y=87)
 disp_group.append(alt_label)
 
-default_alt_ft_text = '      FT'
-alt_ft_text = label.Label(font, text=default_alt_ft_text, color=location_color, x=31, y=87)
+alt_ft_text = bitmap_label.Label(font, text='     ', color=location_color, x=31, y=87)
 disp_group.append(alt_ft_text)
 
-default_alt_m_text = '      M'
-alt_m_text = label.Label(font, text=default_alt_m_text, color=location_color, x=87, y=87)
+alt_ft_label = bitmap_label.Label(font, text='FT', color=location_color, x=65, y=87)
+disp_group.append(alt_ft_label)
+
+alt_m_text = bitmap_label.Label(font, text='     ', color=location_color, x=87, y=87)
 disp_group.append(alt_m_text)
 
+alt_m_label = bitmap_label.Label(font, text='M', color=location_color, x=123, y=87)
+disp_group.append(alt_m_label)
+
 # DISPLAY GPS STATISTICS
-default_speed_label = 'Spd:'
-speed_label = label.Label(font, text=default_speed_label, color=location_color, x=0, y=103)
+speed_label = bitmap_label.Label(font, text='Spd:', color=location_color, x=0, y=103)
 disp_group.append(speed_label)
 
-default_speed_text = '     '
-speed_text = label.Label(font, text=default_speed_text, color=location_color, x=29, y=103)
+speed_text = bitmap_label.Label(font, text='     ', color=location_color, x=29, y=103)
 disp_group.append(speed_text)
 
-default_track_label = 'Trk:'
-track_label = label.Label(font, text=default_track_label, color=location_color, x=70, y=103)
+track_label = bitmap_label.Label(font, text='Trk:', color=location_color, x=70, y=103)
 disp_group.append(track_label)
 
-default_track_text = '     '
-track_text = label.Label(font, text=default_track_text, color=location_color, x=99, y=103)
+track_text = bitmap_label.Label(font, text='     ', color=location_color, x=99, y=103)
 disp_group.append(track_text)
 
-default_sat_count_text = 'Satellites:   '
-sat_count_text = label.Label(font, text=default_sat_count_text, color=sat_color, x=0, y=123)
+sat_count_label = bitmap_label.Label(font, text='Satellites:', color=sat_color, x=0, y=123)
+disp_group.append(sat_count_label)
+
+sat_count_text = bitmap_label.Label(font, text='  ', color=sat_color, x=71, y=123)
 disp_group.append(sat_count_text)
 
-default_comp_text = '---'
-comp_text = label.Label(font, text=default_comp_text, color=compass_color, x=111, y=123)
+comp_text = bitmap_label.Label(font, text='   ', color=compass_color, x=111, y=123)
 disp_group.append(comp_text)
 
 def main():
@@ -488,14 +489,10 @@ def main():
   last_speed = -1
   last_track = -1
 
-  # PRELOAD BATTERY READING ARRAY FOR SMOOTHING - FIFO QUEUE
-  for i in range(bat_smoothing):
-    bat_readings.append(bat.value)
-
   while True:
     # GET GPS DATA
     if gps.update():
-      gps_update_text.color = gps_read_color
+      gps_update_text.text = "#"
 
       if gps.latitude is not None:
         curr_lat = gps.latitude
@@ -547,8 +544,8 @@ def main():
         alt_feet = int(curr_alt * 3.28084)
         meter_pad_length = 5 - len(str(curr_alt))
         feet_pad_length = 5 - len(str(alt_feet))
-        alt_ft_text.text = ' '*feet_pad_length + str(alt_feet) + ' FT '
-        alt_m_text.text = ' '*meter_pad_length + str(curr_alt) + ' M'
+        alt_ft_text.text = ' '*feet_pad_length + str(alt_feet)
+        alt_m_text.text = ' '*meter_pad_length + str(curr_alt)
 
       # UPDATE SPEED AND TRACK ANGLE LABELS IF DATA HAS CHANGED
       if last_speed != curr_speed:
@@ -566,7 +563,9 @@ def main():
       # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
       if last_sat != curr_sat:
         last_sat = curr_sat
-        sat_count_text.text = 'Satellites: ' + str(curr_sat)
+        sat_count_text.text = str(curr_sat)
+
+      time.sleep(0.1)
 
     # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
     curr_datetime = comp_date_time(time.time())
@@ -610,6 +609,6 @@ def main():
         bat_progress_bar.bar_color = bat_colors[curr_bat_percent - 1]
         bat_progress_bar.value = curr_bat_percent
 
-    gps_update_text.color = gps_dark_color
+    gps_update_text.text = ' '
 
 main()
