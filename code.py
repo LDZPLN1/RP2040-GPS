@@ -17,6 +17,7 @@
 # NOTE: OLED DISPLAY IS NOT ADVISABLE FOR OUTDOOR/SUNLIT VIEWING
 #
 # PINS:
+#
 # A0    ANALOG INPUT TO MEASURE BATTERY VOLTAGE
 # SCK   SPI CLOCK FOR DISPLAY
 # MOSI  SPI DATA OUT FOR DISPLAY
@@ -114,7 +115,7 @@ grid_upper = 'ABCDEFGHIJKLMNOPQRSTUVWX'
 grid_lower = 'abcdefghijklmnopqrstuvwx'
 
 # ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE
-bat_curve = (43300, 43700, 45000, 45700, 46100, 46500, 47400, 48600, 50000, 51400, 54000)
+bat_curve = (43300, 43700, 45000, 45700, 46100, 46500, 47400, 48600, 50000, 51400, 65535)
 
 # CALCULATE AND FORMAT UTC TIME, UTC DATE, TIMEZONE TIME AND TIMEZONE DATE. CALCULATE DST
 class comp_date_time:
@@ -161,7 +162,7 @@ class comp_date_time:
 
     # FORMAT UTC DATA
     self.utc_date = '{} {} {:02d}, {}'.format(day_text[time_utc_tuple[6]],month_text[time_utc_tuple[1] - 1],time_utc_tuple[2],time_utc_tuple[0])
-    self.utc_time = '{:02d}:{:02d}:{:02d} UTC'.format(time_utc_tuple[3],time_utc_tuple[4],time_utc_tuple[5])
+    self.utc_time = '{:02d}:{:02d}:{:02d}'.format(time_utc_tuple[3],time_utc_tuple[4],time_utc_tuple[5])
 
     # CALCULATE TIMEZONE TIME AND DATE
     time_tz_secs = base_time_secs + timezone_offset * 3600 + dst_active * dst_offset
@@ -169,7 +170,9 @@ class comp_date_time:
 
     # FORMAT TIMEZONE DATA
     self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]],month_text[time_tz_tuple[1] - 1],time_tz_tuple[2],time_tz_tuple[0])
-    self.tz_time = '{:02d}:{:02d}:{:02d} {}'.format(time_tz_tuple[3],time_tz_tuple[4],time_tz_tuple[5],timezone_desc[dst_active])
+    self.tz_time = '{:02d}:{:02d}:{:02d}'.format(time_tz_tuple[3],time_tz_tuple[4],time_tz_tuple[5])
+
+    self.tz_desc = timezone_desc[dst_active]
 
 # SEND UBX MESSAGES TO GPS
 # WAITS FOR ACK/NAK, RETRANSMITS ON FAILED RESPONSE
@@ -377,22 +380,23 @@ gps = adafruit_gps.GPS(serial, debug=False)
 
 # WAIT FOR INITIAL GPS FIX
 while not gps.has_fix:
-  if gps.update():
-    counter_gps += 1
-    counter_text.text = '{:04d}'.format(counter_gps)
+  gps.update()
+  counter_gps += 1
+  counter_text.text = '{:04d}'.format(counter_gps)
+  time.sleep(0.5)
 
 startup_text.text = 'Waiting For Time Sync'
+counter_gps = 0
 
 # WAIT FOR VALID TIME DATA TO SET RTC
-date_valid = False
+while True:
+  if gps.timestamp_utc.tm_year != 0:
+    break
 
-while not date_valid:
-  if gps.update():
-    counter_gps += 1
-    counter_text.text = '{:04d}'.format(counter_gps)
-
-    if gps.timestamp_utc.tm_year != 0:
-      date_valid=True
+  gps.update()
+  counter_gps += 1
+  counter_text.text = '{:04d}'.format(counter_gps)
+  time.sleep(0.5)
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
@@ -404,14 +408,20 @@ bat_progress_bar = HorizontalProgressBar((112, 0), (16, 8), value=0, min_value=0
 disp_group.append(bat_progress_bar)
 
 # DISPLAY TIME AND DATE FIELDS
-utc_clock_text = bitmap_label.Label(font, text='            ', color=clock_color, x=0, y=3)
+utc_clock_text = bitmap_label.Label(font, text='        ', color=clock_color, x=0, y=3)
 disp_group.append(utc_clock_text)
+
+utc_clock_label = bitmap_label.Label(font, text='UTC', color=clock_color, x=53, y=3)
+disp_group.append(utc_clock_label)
 
 utc_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=15)
 disp_group.append(utc_date_text)
 
-tz_clock_text = bitmap_label.Label(font, text='            ', color=clock_color, x=0, y=31)
+tz_clock_text = bitmap_label.Label(font, text='        ', color=clock_color, x=0, y=31)
 disp_group.append(tz_clock_text)
+
+tz_clock_label = bitmap_label.Label(font, text='   ', color=clock_color, x=53, y=31)
+disp_group.append(tz_clock_label)
 
 tz_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=43)
 disp_group.append(tz_date_text)
@@ -480,6 +490,7 @@ def main():
   last_lat = None
   last_lon = None
   last_tz_date = None
+  last_tz_desc = None
   last_tz_time = None
   last_utc_date = None
   last_utc_time = None
@@ -581,6 +592,10 @@ def main():
     if last_tz_time != curr_datetime.tz_time:
       last_tz_time = curr_datetime.tz_time
       tz_clock_text.text = curr_datetime.tz_time
+
+    if last_tz_desc != curr_datetime.tz_desc:
+      last_tz_desc = curr_datetime.tz_desc
+      tz_clock_label.text = curr_datetime.tz_desc
 
     if last_tz_date != curr_datetime.tz_date:
       last_tz_date = curr_datetime.tz_date
