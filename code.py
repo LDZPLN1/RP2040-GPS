@@ -400,6 +400,7 @@ while True:
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
+rtc.set_time_source(gps)
 disp_group.remove(counter_text)
 disp_group.remove(startup_text)
 
