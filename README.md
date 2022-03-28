@@ -1,5 +1,5 @@
 # RP2040_GPS
-Feather RP2040 GPS
+Adafruit Feather RP2040 GPS
 
 Adafruit Feather RP2040 GPS (For HAM Radio)
 
