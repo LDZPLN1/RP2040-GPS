@@ -47,7 +47,7 @@ from adafruit_progressbar.horizontalprogressbar import (HorizontalProgressBar, H
 from adafruit_ssd1351 import SSD1351
 
 # VERSION
-version = '1.2'
+version = '1.3'
 
 ################################################################
 # USER ADJUSTABLE VARIABLES LISTED BELOW                       #
@@ -81,7 +81,7 @@ startup_logo = '/images/ab9xa.bmp'
 clock_color = 0x00FF00
 compass_color = 0xFFFF00
 date_color = 0x0000FF
-gps_color = 0x00FFFF
+gps_color = 0xFF0000
 grid_color = 0xFFFF00
 location_color = 0x00FF00
 sat_color = 0xFF00FF
@@ -98,6 +98,31 @@ pin_cs = board.D25
 pin_dc = board.D24
 pin_rst = board.D4
 
+# ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE
+bat_curve = (43300, 44000, 45000, 45700, 46000, 46600, 47500, 48800, 50000, 51400, 65535)
+
+# BATTERY CUTOFF
+bat_cutoff = 43100
+
+# BATTERY BARGRAPH SIZE
+bat_x = 16
+bat_y = 8
+
+# GPS HEARTBEAT CHARACTER
+gps_char = '#'
+
+# DISPLAY SIZE
+disp_x = 128
+disp_y = 128
+
+# DISPLAY FONT DATA
+font = terminalio.FONT
+char_height = 10
+char_start = 3
+char_width = 6
+line_space = 1
+line_gap = 8
+
 ################################################################
 # END OF USER ADJUSTABLE VARIABLES                             #
 ################################################################
@@ -113,9 +138,6 @@ comp_point = ('NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WS
 # ARRAYS FOR GRID SQUARE TEXT
 grid_upper = 'ABCDEFGHIJKLMNOPQRSTUVWX'
 grid_lower = 'abcdefghijklmnopqrstuvwx'
-
-# ARRAY FOR ADC VALUE TO BATTERY PERCENTAGE
-bat_curve = (43300, 43700, 45000, 45700, 46100, 46500, 47400, 48600, 50000, 51400, 65535)
 
 # CALCULATE AND FORMAT UTC TIME, UTC DATE, TIMEZONE TIME AND TIMEZONE DATE. CALCULATE DST
 class comp_date_time:
@@ -256,6 +278,9 @@ def comp_degree(x_axis, y_axis):
   if angle < 0:
     angle += 360
 
+  if angle >= 360:
+    angle -= 360
+
   return angle
 
 # CALCULATE COMPASS DIRECTION FROM ANGLE
@@ -275,12 +300,11 @@ def comp_direction(degrees):
   return direction
 
 # CALCULATE BATTERY PERCENTAGE
-def bat_level():
-  bat_current = bat.value
+def bat_level(adc_value):
   bat_percent = 0
 
   for percent in range(10, 1, -1):
-    if bat_current <= bat_curve[percent] and bat_current > bat_curve[percent - 1]:
+    if adc_value <= bat_curve[percent] and adc_value > bat_curve[percent - 1]:
       bat_percent = percent * 10
       break
 
@@ -293,9 +317,7 @@ clock = rtc.RTC()
 displayio.release_displays()
 spi = busio.SPI(pin_sck, MOSI=pin_mosi)
 disp_bus = displayio.FourWire(spi, command=pin_dc, chip_select=pin_cs, reset=pin_rst, baudrate=60000000)
-disp = SSD1351(disp_bus, width=128, height=128)
-
-font = terminalio.FONT
+disp = SSD1351(disp_bus, width=disp_x, height=disp_y)
 
 # SETUP MAGNETOMETER
 i2c = busio.I2C(pin_scl, pin_sda)
@@ -325,14 +347,18 @@ time.sleep(1.5)
 disp_group.remove(tile_grid)
 
 # DISPLAY VERSION
-startup_text_default = '     Version ' + version + '     '
-startup_text = bitmap_label.Label(font, text=startup_text_default, color=0xFFB000, x=0, y=60)
-disp_group.append(startup_text)
+message_text = 'Version ' + version
+message_x = int((disp_x - len(message_text) * char_width) / 2)
+message_text = bitmap_label.Label(font, text=message_text, color=0xFFB000, x=message_x, y=int(disp_y / 2))
+disp_group.append(message_text)
 time.sleep(1.0)
+disp_group.remove(message_text)
 
 # CONFIGURE GPS
-startup_text.text = '   Configuring GPS'
-startup_text.color = 0x00FFFF
+message_text = ('Configuring GPS')
+message_x = int((disp_x - len(message_text) * char_width) / 2)
+message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
+disp_group.append(message_text)
 
 # UBX HEADER
 ubx_header = bytes([0xb5, 0x62])
@@ -351,7 +377,7 @@ cls_gsa = bytes([0xF0, 0x02])
 cls_gsv = bytes([0xF0, 0x03])
 cls_vtg = bytes([0xF0, 0x05])
 
-# CONFIGURE UART
+# CONFIGURE UART AND GPS BAUD RATE
 serial = busio.UART(pin_tx, pin_rx, baudrate=38400, timeout=1, receiver_buffer_size=256)
 
 # DISABLE NMEA GLL, GSA, GSV AND VTG MESSAGES, ONLY RMC AND GGA ARE NEEDED
@@ -370,9 +396,16 @@ while not ubx_send(cfg_msg, cls_gsv, payload):
 while not ubx_send(cfg_msg, cls_vtg, payload):
   time.sleep(0.1)
 
-startup_text.text = ' Waiting for GPS Fix'
+disp_group.remove(message_text)
+
+# CONFIGURE GPS
+message_text = ('Waiting for GPS Fix')
+message_x = int((disp_x - len(message_text) * char_width) / 2)
+message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
+disp_group.append(message_text)
+
 counter_gps = 0
-counter_text = bitmap_label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=105, y=123)
+counter_text = bitmap_label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=int((disp_x - 4 * char_width) / 2), y=int(disp_y / 2) + char_height + 2)
 disp_group.append(counter_text)
 
 # SETUP GPS DECODING
@@ -385,8 +418,15 @@ while not gps.has_fix:
   counter_text.text = '{:04d}'.format(counter_gps)
   time.sleep(0.5)
 
-startup_text.text = 'Waiting For Time Sync'
+disp_group.remove(message_text)
+
+message_text = ('Waiting For Time Sync')
+message_x = int((disp_x - len(message_text) * char_width) / 2)
+message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
+disp_group.append(message_text)
+
 counter_gps = 0
+serial.reset_input_buffer()
 
 # WAIT FOR VALID TIME DATA TO SET RTC
 while True:
@@ -402,86 +442,85 @@ while True:
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
 rtc.set_time_source(gps)
 disp_group.remove(counter_text)
-disp_group.remove(startup_text)
+disp_group.remove(message_text)
 
 # DISPLAY BATTERY GAUGE
-bat_progress_bar = HorizontalProgressBar((112, 0), (16, 8), value=0, min_value=0, max_value=100, fill_color=0x000000, outline_color=0xFFFFFF, bar_color=0x00FF00, direction=HorizontalFillDirection.LEFT_TO_RIGHT)
+bat_progress_bar = HorizontalProgressBar((disp_x - bat_x, 0), (bat_x, bat_y), value=0, min_value=0, max_value=100, fill_color=0x000000, outline_color=0xFFFFFF, bar_color=0x00FF00, direction=HorizontalFillDirection.LEFT_TO_RIGHT)
 disp_group.append(bat_progress_bar)
 
 # DISPLAY TIME AND DATE FIELDS
-utc_clock_text = bitmap_label.Label(font, text='        ', color=clock_color, x=0, y=3)
+utc_clock_text = bitmap_label.Label(font, text=' '*8, color=clock_color, x=0, y=char_start)
 disp_group.append(utc_clock_text)
 
-utc_clock_label = bitmap_label.Label(font, text='UTC', color=clock_color, x=53, y=3)
+utc_clock_label = bitmap_label.Label(font, text='UTC', color=clock_color, x=char_width * 9, y=char_start)
 disp_group.append(utc_clock_label)
 
-utc_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=15)
+utc_date_text = bitmap_label.Label(font, text=' '*16, color=date_color, x=0, y=char_start + char_height + line_space)
 disp_group.append(utc_date_text)
 
-tz_clock_text = bitmap_label.Label(font, text='        ', color=clock_color, x=0, y=31)
+tz_clock_text = bitmap_label.Label(font, text=' '*8, color=clock_color, x=0, y=char_start + (char_height + line_space) * 2 + line_gap)
 disp_group.append(tz_clock_text)
 
-tz_clock_label = bitmap_label.Label(font, text='   ', color=clock_color, x=53, y=31)
+tz_clock_label = bitmap_label.Label(font, text='   ', color=clock_color, x=char_width * 9, y=char_start + (char_height + line_space) * 2 + line_gap)
 disp_group.append(tz_clock_label)
 
-tz_date_text = bitmap_label.Label(font, text='                ', color=date_color, x=0, y=43)
+tz_date_text = bitmap_label.Label(font, text=' '*16, color=date_color, x=0, y=char_start + (char_height + line_space) * 3 + line_gap)
 disp_group.append(tz_date_text)
 
 # DISPLAY LATITUDE / LONGITUDE / ALTITUDE / GRID / COMPASS FIELDS
-lat_label = bitmap_label.Label(font, text='Lat:', color=location_color, x=0, y=59)
+lat_label = bitmap_label.Label(font, text='Lat:', color=location_color, x=0, y=char_start + (char_height + line_space) * 4 + line_gap * 2)
 disp_group.append(lat_label)
 
-lat_text = bitmap_label.Label(font, text='        ', color=location_color, x=36, y=59)
+lat_text = bitmap_label.Label(font, text=' '*8, color=location_color, x=char_width * 6, y=char_start + (char_height + line_space) * 4 + line_gap * 2)
 disp_group.append(lat_text)
 
-grid_text = bitmap_label.Label(font, text='      ', color=grid_color, x=93, y=59)
+grid_text = bitmap_label.Label(font, text=' '*6, color=grid_color, x=char_width * 15, y=char_start + (char_height + line_space) * 4 + line_gap * 2)
 disp_group.append(grid_text)
 
-lon_label = bitmap_label.Label(font, text='Lon:', color=location_color, x=0, y=71)
+lon_label = bitmap_label.Label(font, text='Lon:', color=location_color, x=0, y=char_start + (char_height + line_space) * 5 + line_gap * 2)
 disp_group.append(lon_label)
 
-lon_text = bitmap_label.Label(font, text='         ', color=location_color, x=29, y=71)
+lon_text = bitmap_label.Label(font, text=' '*9, color=location_color, x=char_width * 5, y=char_start + (char_height + line_space) * 5 + line_gap * 2)
 disp_group.append(lon_text)
 
-default_gps_update_text = ' '
-gps_update_text = bitmap_label.Label(font, text=default_gps_update_text, color=gps_color, x=123, y=71)
+gps_update_text = bitmap_label.Label(font, text=' ', color=gps_color, x=char_width * 20, y=char_start + (char_height + line_space) * 5 + line_gap * 2)
 disp_group.append(gps_update_text)
 
-alt_label = bitmap_label.Label(font, text='Alt:', color=location_color, x=0, y=87)
+# DISPLAY GPS STATISTICS
+alt_label = bitmap_label.Label(font, text='Alt:', color=location_color, x=0, y=char_start + (char_height + line_space) * 6 + line_gap * 3)
 disp_group.append(alt_label)
 
-alt_ft_text = bitmap_label.Label(font, text='     ', color=location_color, x=31, y=87)
+alt_ft_text = bitmap_label.Label(font, text=' '*5, color=location_color, x=char_width * 5, y=char_start + (char_height + line_space) * 6 + line_gap * 3)
 disp_group.append(alt_ft_text)
 
-alt_ft_label = bitmap_label.Label(font, text='FT', color=location_color, x=65, y=87)
+alt_ft_label = bitmap_label.Label(font, text='FT', color=location_color, x=char_width * 11, y=char_start + (char_height + line_space) * 6 + line_gap * 3)
 disp_group.append(alt_ft_label)
 
-alt_m_text = bitmap_label.Label(font, text='     ', color=location_color, x=87, y=87)
+alt_m_text = bitmap_label.Label(font, text=' '*5, color=location_color, x=char_width * 14, y=char_start + (char_height + line_space) * 6 + line_gap * 3)
 disp_group.append(alt_m_text)
 
-alt_m_label = bitmap_label.Label(font, text='M', color=location_color, x=123, y=87)
+alt_m_label = bitmap_label.Label(font, text='M', color=location_color, x=char_width * 20, y=char_start + (char_height + line_space) * 6 + line_gap * 3)
 disp_group.append(alt_m_label)
 
-# DISPLAY GPS STATISTICS
-speed_label = bitmap_label.Label(font, text='Spd:', color=location_color, x=0, y=103)
+speed_label = bitmap_label.Label(font, text='Spd:', color=location_color, x=0, y=char_start + (char_height + line_space) * 7 + line_gap * 3)
 disp_group.append(speed_label)
 
-speed_text = bitmap_label.Label(font, text='     ', color=location_color, x=29, y=103)
+speed_text = bitmap_label.Label(font, text=' '*5, color=location_color, x=char_width * 5, y=char_start + (char_height + line_space) * 7 + line_gap * 3)
 disp_group.append(speed_text)
 
-track_label = bitmap_label.Label(font, text='Trk:', color=location_color, x=70, y=103)
+track_label = bitmap_label.Label(font, text='Trk:', color=location_color, x=char_width * 11, y=char_start + (char_height + line_space) * 7 + line_gap * 3)
 disp_group.append(track_label)
 
-track_text = bitmap_label.Label(font, text='     ', color=location_color, x=99, y=103)
+track_text = bitmap_label.Label(font, text=' '*5, color=location_color, x=char_width * 16, y=char_start + (char_height + line_space) * 7 + line_gap * 3)
 disp_group.append(track_text)
 
-sat_count_label = bitmap_label.Label(font, text='Satellites:', color=sat_color, x=0, y=123)
+sat_count_label = bitmap_label.Label(font, text='Satellites:', color=sat_color, x=0, y=char_start + (char_height + line_space) * 8 + line_gap * 4)
 disp_group.append(sat_count_label)
 
-sat_count_text = bitmap_label.Label(font, text='  ', color=sat_color, x=71, y=123)
+sat_count_text = bitmap_label.Label(font, text='  ', color=sat_color, x=char_width * 12, y=char_start + (char_height + line_space) * 8 + line_gap * 4)
 disp_group.append(sat_count_text)
 
-comp_text = bitmap_label.Label(font, text='   ', color=compass_color, x=111, y=123)
+comp_text = bitmap_label.Label(font, text='   ', color=compass_color, x=char_width * 18, y=char_start + (char_height + line_space) * 8 + line_gap * 4)
 disp_group.append(comp_text)
 
 def main():
@@ -496,7 +535,7 @@ def main():
   last_utc_date = None
   last_utc_time = None
   last_bat_percent = -1
-  last_bat_time = -30
+  last_bat_time = -60
   last_sat = -1
   last_speed = -1
   last_track = -1
@@ -504,7 +543,7 @@ def main():
   while True:
     # GET GPS DATA
     if gps.update():
-      gps_update_text.text = "#"
+      gps_update_text.text = gps_char
 
       if gps.latitude is not None:
         curr_lat = gps.latitude
@@ -613,17 +652,50 @@ def main():
       pad_length = 3 - len(curr_comp)
       comp_text.text = ' '*pad_length + curr_comp
 
-    # CHECK BATTERY VOLTAGE EVERY 15 SECONDS AND CALCULATE PERCENTAGE OF CHARGE
+    # CHECK BATTERY VOLTAGE ONCE A MINUTE AND CALCULATE PERCENTAGE OF CHARGE
     curr_bat_time = time.monotonic()
 
-    if (curr_bat_time - last_bat_time) >= 15:
+    if (curr_bat_time - last_bat_time) >= 60:
       last_bat_time = curr_bat_time
-      curr_bat_percent = bat_level()
+      curr_bat = bat.value
+      curr_bat_percent = bat_level(curr_bat)
 
       # UPDATE BATTERY GAUGE IF PERCENTAGE HAS CHANGED
       if last_bat_percent != curr_bat_percent:
         bat_progress_bar.bar_color = bat_colors[curr_bat_percent - 1]
         bat_progress_bar.value = curr_bat_percent
+
+      if curr_bat <= bat_cutoff:
+        disp_group.remove(utc_clock_text)
+        disp_group.remove(utc_clock_label)
+        disp_group.remove(utc_date_text)
+        disp_group.remove(tz_clock_text)
+        disp_group.remove(tz_clock_label)
+        disp_group.remove(tz_date_text)
+        disp_group.remove(lat_label)
+        disp_group.remove(lat_text)
+        disp_group.remove(grid_text)
+        disp_group.remove(lon_label)
+        disp_group.remove(lon_text)
+        disp_group.remove(gps_update_text)
+        disp_group.remove(alt_label)
+        disp_group.remove(alt_ft_text)
+        disp_group.remove(alt_ft_label)
+        disp_group.remove(alt_m_text)
+        disp_group.remove(alt_m_label)
+        disp_group.remove(speed_label)
+        disp_group.remove(speed_text)
+        disp_group.remove(track_label)
+        disp_group.remove(track_text)
+        disp_group.remove(sat_count_label)
+        disp_group.remove(sat_count_text)
+        disp_group.remove(comp_text)
+
+        low_bat_text = bitmap_label.Label(font, text='LOW BATTERY', color=0xFF0000, x=93, y=125)
+        disp_group.append(low_bat_text)
+
+        while True:
+          pass
 
     gps_update_text.text = ' '
 
