@@ -147,7 +147,7 @@ class comp_date_time:
     # CHECK FOR DEC 31 / JAN 1 OVERLAP AND CORRECT YEAR FOR TIMEZONE DATE
     base_year = time_utc_tuple[0]
     err_check_tuple = (base_year, 1, 1, 0, 0, 0, 0, 0, 0)
-    err_check_secs = time.mktime(err_check_tuple) - timezone_offset * 86400
+    err_check_secs = time.mktime(err_check_tuple) - timezone_offset * 3600
 
     if base_time_secs < err_check_secs:
       base_year -= 1
