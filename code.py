@@ -691,8 +691,10 @@ def main():
         disp_group.remove(sat_count_text)
         disp_group.remove(comp_text)
 
-        low_bat_text = bitmap_label.Label(font, text='LOW BATTERY', color=0xFF0000, x=93, y=125)
-        disp_group.append(low_bat_text)
+        message_text = 'LOW BATTERY'
+        message_x = int((disp_x - len(message_text) * char_width) / 2)
+        message_text = bitmap_label.Label(font, text=message_text, color=0xFFB000, x=message_x, y=int(disp_y / 2))
+        disp_group.append(message_text)
 
         while True:
           pass
