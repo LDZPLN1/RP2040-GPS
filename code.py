@@ -422,14 +422,14 @@ while not gps.has_fix:
   counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
   time.sleep(0.5)
 
+serial.reset_input_buffer()
+
 disp_group.remove(message_text)
 
 message_text = ('Waiting For Time Sync')
 message_x = int((disp_x - len(message_text) * char_width) / 2)
 message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
 disp_group.append(message_text)
-
-serial.reset_input_buffer()
 
 # WAIT FOR VALID TIME DATA TO SET RTC
 while True:
