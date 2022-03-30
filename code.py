@@ -404,8 +404,10 @@ message_x = int((disp_x - len(message_text) * char_width) / 2)
 message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
 disp_group.append(message_text)
 
-counter_gps = 0
-counter_text = bitmap_label.Label(font, text='{:04d}'.format(counter_gps), color=0xFFFFFF, x=int((disp_x - 4 * char_width) / 2), y=int(disp_y / 2) + char_height + 2)
+timer_start_gps = time.monotonic()
+counter_text = '00:00'
+counter_x = int((disp_x - len(counter_text) * char_width) / 2)
+counter_text = bitmap_label.Label(font, text=counter_text, color=0xFFFFFF, x=counter_x, y=int(disp_y / 2) + char_height + 2)
 disp_group.append(counter_text)
 
 # SETUP GPS DECODING
@@ -414,8 +416,10 @@ gps = adafruit_gps.GPS(serial, debug=False)
 # WAIT FOR INITIAL GPS FIX
 while not gps.has_fix:
   gps.update()
-  counter_gps += 1
-  counter_text.text = '{:04d}'.format(counter_gps)
+  counter_gps = time.monotonic() - timer_start_gps
+  counter_min = int(counter_gps / 60)
+  counter_sec = int(counter_gps%60)
+  counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
   time.sleep(0.5)
 
 disp_group.remove(message_text)
@@ -425,7 +429,6 @@ message_x = int((disp_x - len(message_text) * char_width) / 2)
 message_text = bitmap_label.Label(font, text=message_text, color=0x00FFFF, x=message_x, y=int(disp_y / 2))
 disp_group.append(message_text)
 
-counter_gps = 0
 serial.reset_input_buffer()
 
 # WAIT FOR VALID TIME DATA TO SET RTC
@@ -434,8 +437,10 @@ while True:
     break
 
   gps.update()
-  counter_gps += 1
-  counter_text.text = '{:04d}'.format(counter_gps)
+  counter_gps = time.monotonic() - timer_start_gps
+  counter_min = int(counter_gps / 60)
+  counter_sec = int(counter_gps%60)
+  counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
   time.sleep(0.5)
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
