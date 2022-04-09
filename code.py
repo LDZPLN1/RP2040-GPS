@@ -420,11 +420,11 @@ while not gps.has_fix:
   counter_min = int(counter_gps / 60)
   counter_sec = int(counter_gps%60)
   counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
-  time.sleep(0.5)
-
-serial.reset_input_buffer()
+  time.sleep(0.2)
 
 disp_group.remove(message_text)
+
+serial.reset_input_buffer()
 
 message_text = ('Waiting For Time Sync')
 message_x = int((disp_x - len(message_text) * char_width) / 2)
