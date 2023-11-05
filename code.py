@@ -162,7 +162,7 @@ class comp_date_time:
     if dst_start_diff < 0:
       dst_start_diff += 7
 
-    dst_start_secs += dst_start_diff * 86400
+    dst_start_secs += dst_start_diff * 86400 - timezone_offset * 3600
 
     # CALCULATE IN SECONDS THE DST END TIME AND DATE
     dst_end_tuple = (base_year, dst_end[0], dst_end[1] * 7 - 6, dst_end[3], 0, 0, 0, 0, 0)
@@ -174,7 +174,7 @@ class comp_date_time:
     if dst_end_diff < 0:
       dst_end_diff += 7
 
-    dst_end_secs += dst_end_diff * 86400
+    dst_end_secs += dst_end_diff * 86400 - timezone_offset * 3600 - dst_offset
 
     # IF THE CURRENT TIME AND DATE FALL BETWEEN THE DST START AND END TIMES, SET DST_ACTIVE
     if base_time_secs >= dst_start_secs and base_time_secs < dst_end_secs:
