@@ -118,7 +118,7 @@ disp_y = 128
 # DISPLAY FONT DATA
 font = terminalio.FONT
 char_height = 10
-char_start = 3
+char_start = 4
 char_width = 6
 line_space = 1
 line_gap = 8
@@ -414,12 +414,18 @@ disp_group.append(counter_text)
 gps = adafruit_gps.GPS(serial, debug=False)
 
 # WAIT FOR INITIAL GPS FIX
+old_counter = -1
+
 while not gps.has_fix:
     gps.update()
     counter_gps = time.monotonic() - timer_start_gps
     counter_min = int(counter_gps / 60)
     counter_sec = int(counter_gps % 60)
-    counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
+
+    if old_counter != counter_sec:
+        old_counter = counter_sec
+        counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
+
     time.sleep(0.2)
 
 disp_group.remove(message_text)
