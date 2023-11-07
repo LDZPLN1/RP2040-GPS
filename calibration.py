@@ -14,46 +14,46 @@ flip_y_axis = True
 swap_axis = True
 
 def comp_degree(x_axis, y_axis):
-  if flip_x_axis:
-    x_axis *= -1
+    if flip_x_axis:
+        x_axis *= -1
 
-  if flip_y_axis:
-    y_axis *= -1
+    if flip_y_axis:
+        y_axis *= -1
 
-  if swap_axis:
-    x_axis, y_axis = y_axis, x_axis
+    if swap_axis:
+        x_axis, y_axis = y_axis, x_axis
 
-  if (x_axis > 0) and (y_axis == 0):
-    angle = 0
-  elif (x_axis < 0) and (y_axis == 0):
-    angle = 180
-  elif y_axis > 0:
-    angle = 90 - math.atan(x_axis/y_axis) * 180 / math.pi
-  elif y_axis < 0:
-    angle = 270 - math.atan(x_axis/y_axis) * 180 / math.pi
+    if (x_axis > 0) and (y_axis == 0):
+        angle = 0
+    elif (x_axis < 0) and (y_axis == 0):
+        angle = 180
+    elif y_axis > 0:
+        angle = 90 - math.atan(x_axis/y_axis) * 180 / math.pi
+    elif y_axis < 0:
+        angle = 270 - math.atan(x_axis/y_axis) * 180 / math.pi
 
-  if angle < 0:
-    angle += 360
+    if angle < 0:
+        angle += 360
 
-  if angle >= 360:
-    angle -= 360
+    if angle >= 360:
+        angle -= 360
 
-  return angle
+    return angle
 
-def comp_direction (degrees):
-  if degrees == -1:
-    direction = '---'
-  elif (degrees < 11.25) or (degrees >= 348.75):
-    direction = 'N'
-  else:
-    for i in range(15):
-      c_angle = comp_angle[i]
+def comp_direction(degrees):
+    if degrees == -1:
+        direction = '---'
+    elif (degrees < 11.25) or (degrees >= 348.75):
+        direction = 'N'
+    else:
+        for i in range(15):
+            c_angle = comp_angle[i]
 
-      if (degrees >= c_angle) and (degrees < (c_angle + 22.5)):
-        direction = comp_point[i]
-        break
+            if (degrees >= c_angle) and (degrees < (c_angle + 22.5)):
+                direction = comp_point[i]
+                break
 
-  return direction
+    return direction
 
 displayio.release_displays()
 spi = board.SPI()
@@ -104,44 +104,44 @@ y_cal_text = label.Label(font, text='         ', color=0xFFFFFF, x=0, y=68)
 disp_group.append(y_cal_text)
 
 def main():
-  x_min = 0
-  x_max = 0
-  y_min = 0
-  y_max = 0
+    x_min = 0
+    x_max = 0
+    y_min = 0
+    y_max = 0
 
-  while True:
-    x, y, _ = comp.magnetic
+    while True:
+        x, y, _ = comp.magnetic
 
-    if x < x_min:
-      x_min = x
+        if x < x_min:
+            x_min = x
 
-    if x > x_max:
-      x_max = x
+        if x > x_max:
+            x_max = x
 
-    if y < y_min:
-      y_min = y
+        if y < y_min:
+            y_min = y
 
-    if y > y_max:
-      y_max = y
+        if y > y_max:
+            y_max = y
 
-    x_cal = (x_min + x_max) / 2
-    y_cal = (y_min + y_max) / 2
+        x_cal = (x_min + x_max) / 2
+        y_cal = (y_min + y_max) / 2
 
-    corrected_x = x - x_cal
-    corrected_y = y - y_cal
+        corrected_x = x - x_cal
+        corrected_y = y - y_cal
 
-    uncorrected_angle = comp_degree(x ,y)
-    uncorrected_direction = comp_direction(uncorrected_angle)
-    corrected_angle = comp_degree(corrected_x, corrected_y)
-    corrected_direction = comp_direction(corrected_angle)
+        uncorrected_angle = comp_degree(x, y)
+        uncorrected_direction = comp_direction(uncorrected_angle)
+        corrected_angle = comp_degree(corrected_x, corrected_y)
+        corrected_direction = comp_direction(corrected_angle)
 
-    angle_text.text = str(uncorrected_angle)
-    direction_text.text = uncorrected_direction
-    corrected_angle_text.text = str(corrected_angle)
-    corrected_direction_text.text = corrected_direction
-    x_raw_text.text = str(x)
-    y_raw_text.text = str(y)
-    x_cal_text.text = str(x_cal)
-    y_cal_text.text = str(y_cal)
+        angle_text.text = str(uncorrected_angle)
+        direction_text.text = uncorrected_direction
+        corrected_angle_text.text = str(corrected_angle)
+        corrected_direction_text.text = corrected_direction
+        x_raw_text.text = str(x)
+        y_raw_text.text = str(y)
+        x_cal_text.text = str(x_cal)
+        y_cal_text.text = str(y_cal)
 
 main()

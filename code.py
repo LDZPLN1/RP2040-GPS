@@ -2,7 +2,7 @@
 # 2022 DOUGLAS GRAHAM, AB9XA
 #
 # SELF CONTAINED CLOCK, GPS, COMPASS AND ALTIMETER
-# DISPLAYS TIME IN UTC AND LOCAK
+# DISPLAYS TIME IN UTC AND LOCAL
 # DISPLAYS CURRENT MAIDENHEAD GRID SQUARE BASED ON GPS LOCATION
 #
 # HARDWARE:
@@ -53,9 +53,9 @@ version = '1.3'
 # USER ADJUSTABLE VARIABLES LISTED BELOW                       #
 ################################################################
 
-# DST START / END (MONTH, WEEK, DAY, HOUR) / OFFSET IN MINUTES
-dst_start = (3,2,6,2)
-dst_end = (11,1,6,2)
+# DST START / END (MONTH, WEEK, DAY, HOUR) / OFFSET IN SECONDS
+dst_start = (3, 2, 6, 2)
+dst_end = (11, 1, 6, 2)
 dst_offset = 3600
 
 # TIMEZONE DATA
@@ -128,8 +128,8 @@ line_gap = 8
 ################################################################
 
 # ARRAYS FOR DAY AND MONTH TEXT
-day_text = ('MON','TUE','WED','THU','FRI','SAT','SUN')
-month_text = ('JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC')
+day_text = ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN')
+month_text = ('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC')
 
 # COMPASS DATA
 comp_angle = (11.25, 33.75, 56.25, 78.75, 101.25, 123.75, 146.25, 168.75, 191.25, 213.75, 236.25, 258.75, 281.25, 303.75, 326.25, 348.75)
@@ -141,174 +141,174 @@ grid_lower = 'abcdefghijklmnopqrstuvwx'
 
 # CALCULATE AND FORMAT UTC TIME, UTC DATE, TIMEZONE TIME AND TIMEZONE DATE. CALCULATE DST
 class comp_date_time:
-  def __init__ (self, base_time_secs):
-    time_utc_tuple = time.localtime(base_time_secs)
+    def __init__(self, base_time_secs):
+        time_utc_tuple = time.localtime(base_time_secs)
 
-    # CHECK FOR DEC 31 / JAN 1 OVERLAP AND CORRECT YEAR FOR TIMEZONE DATE
-    base_year = time_utc_tuple[0]
-    err_check_tuple = (base_year, 1, 1, 0, 0, 0, 0, 0, 0)
-    err_check_secs = time.mktime(err_check_tuple) - timezone_offset * 3600
+        # CHECK FOR DEC 31 / JAN 1 OVERLAP AND CORRECT YEAR FOR TIMEZONE DATE
+        base_year = time_utc_tuple[0]
+        err_check_tuple = (base_year, 1, 1, 0, 0, 0, 0, 0, 0)
+        err_check_secs = time.mktime(err_check_tuple) - timezone_offset * 3600
 
-    if base_time_secs < err_check_secs:
-      base_year -= 1
+        if base_time_secs < err_check_secs:
+            base_year -= 1
 
-    # CALCULATE IN SECONDS THE DST START TIME AND DATE
-    dst_start_tuple = (base_year, dst_start[0], dst_start[1] * 7 - 6, dst_start[3], 0, 0, 0, 0, 0)
-    dst_start_secs = time.mktime(dst_start_tuple)
-    dst_start_tuple = time.localtime(dst_start_secs)
+        # CALCULATE IN SECONDS THE DST START TIME AND DATE
+        dst_start_tuple = (base_year, dst_start[0], dst_start[1] * 7 - 6, dst_start[3], 0, 0, 0, 0, 0)
+        dst_start_secs = time.mktime(dst_start_tuple)
+        dst_start_tuple = time.localtime(dst_start_secs)
 
-    dst_start_diff = dst_start[2] - dst_start_tuple[6]
+        dst_start_diff = dst_start[2] - dst_start_tuple[6]
 
-    if dst_start_diff < 0:
-      dst_start_diff += 7
+        if dst_start_diff < 0:
+            dst_start_diff += 7
 
-    dst_start_secs += dst_start_diff * 86400 - timezone_offset * 3600
+        dst_start_secs += dst_start_diff * 86400 - timezone_offset * 3600
 
-    # CALCULATE IN SECONDS THE DST END TIME AND DATE
-    dst_end_tuple = (base_year, dst_end[0], dst_end[1] * 7 - 6, dst_end[3], 0, 0, 0, 0, 0)
-    dst_end_secs = time.mktime(dst_end_tuple) - dst_offset
-    dst_end_tuple = time.localtime(dst_end_secs)
+        # CALCULATE IN SECONDS THE DST END TIME AND DATE
+        dst_end_tuple = (base_year, dst_end[0], dst_end[1] * 7 - 6, dst_end[3], 0, 0, 0, 0, 0)
+        dst_end_secs = time.mktime(dst_end_tuple) - dst_offset
+        dst_end_tuple = time.localtime(dst_end_secs)
 
-    dst_end_diff = dst_end[2] - dst_end_tuple[6]
+        dst_end_diff = dst_end[2] - dst_end_tuple[6]
 
-    if dst_end_diff < 0:
-      dst_end_diff += 7
+        if dst_end_diff < 0:
+            dst_end_diff += 7
 
-    dst_end_secs += dst_end_diff * 86400 - timezone_offset * 3600 - dst_offset
+        dst_end_secs += dst_end_diff * 86400 - timezone_offset * 3600 - dst_offset
 
-    # IF THE CURRENT TIME AND DATE FALL BETWEEN THE DST START AND END TIMES, SET DST_ACTIVE
-    if base_time_secs >= dst_start_secs and base_time_secs < dst_end_secs:
-      dst_active = True
-    else:
-      dst_active = False
+        # IF THE CURRENT TIME AND DATE FALL BETWEEN THE DST START AND END TIMES, SET DST_ACTIVE
+        if base_time_secs >= dst_start_secs and base_time_secs < dst_end_secs:
+            dst_active = True
+        else:
+            dst_active = False
 
-    # FORMAT UTC DATA
-    self.utc_date = '{} {} {:02d}, {}'.format(day_text[time_utc_tuple[6]],month_text[time_utc_tuple[1] - 1],time_utc_tuple[2],time_utc_tuple[0])
-    self.utc_time = '{:02d}:{:02d}:{:02d}'.format(time_utc_tuple[3],time_utc_tuple[4],time_utc_tuple[5])
+        # FORMAT UTC DATA
+        self.utc_date = '{} {} {:02d}, {}'.format(day_text[time_utc_tuple[6]], month_text[time_utc_tuple[1] - 1], time_utc_tuple[2], time_utc_tuple[0])
+        self.utc_time = '{:02d}:{:02d}:{:02d}'.format(time_utc_tuple[3], time_utc_tuple[4], time_utc_tuple[5])
 
-    # CALCULATE TIMEZONE TIME AND DATE
-    time_tz_secs = base_time_secs + timezone_offset * 3600 + dst_active * dst_offset
-    time_tz_tuple = time.localtime(time_tz_secs)
+        # CALCULATE TIMEZONE TIME AND DATE
+        time_tz_secs = base_time_secs + timezone_offset * 3600 + dst_active * dst_offset
+        time_tz_tuple = time.localtime(time_tz_secs)
 
-    # FORMAT TIMEZONE DATA
-    self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]],month_text[time_tz_tuple[1] - 1],time_tz_tuple[2],time_tz_tuple[0])
-    self.tz_time = '{:02d}:{:02d}:{:02d}'.format(time_tz_tuple[3],time_tz_tuple[4],time_tz_tuple[5])
+        # FORMAT TIMEZONE DATA
+        self.tz_date = '{} {} {:02d}, {}'.format(day_text[time_tz_tuple[6]], month_text[time_tz_tuple[1] - 1], time_tz_tuple[2], time_tz_tuple[0])
+        self.tz_time = '{:02d}:{:02d}:{:02d}'.format(time_tz_tuple[3], time_tz_tuple[4], time_tz_tuple[5])
 
-    self.tz_desc = timezone_desc[dst_active]
+        self.tz_desc = timezone_desc[dst_active]
 
 # SEND UBX MESSAGES TO GPS
 # WAITS FOR ACK/NAK, RETRANSMITS ON FAILED RESPONSE
 # RETURNS TRUE FOR ACK, FALSE FOR NAK
 def ubx_send(msg_type, msg_class, msg_payload):
-  msg_len = len(msg_class) + len(msg_payload)
-  msg_base = msg_type + msg_len.to_bytes(2, 'little') + msg_class + msg_payload
-  msg_out = ubx_header + msg_base + ubx_checksum(msg_base)
+    msg_len = len(msg_class) + len(msg_payload)
+    msg_base = msg_type + msg_len.to_bytes(2, 'little') + msg_class + msg_payload
+    msg_out = ubx_header + msg_base + ubx_checksum(msg_base)
 
-  msg_ackx = ubx_ack + len(msg_type).to_bytes(2, 'little') + msg_type
-  msg_ack = ubx_header + msg_ackx + ubx_checksum(msg_ackx)
+    msg_ackx = ubx_ack + len(msg_type).to_bytes(2, 'little') + msg_type
+    msg_ack = ubx_header + msg_ackx + ubx_checksum(msg_ackx)
 
-  msg_nakx = ubx_nak + len(msg_type).to_bytes(2, 'little') + msg_type
-  msg_nak = ubx_header + msg_nakx + ubx_checksum(msg_nakx)
+    msg_nakx = ubx_nak + len(msg_type).to_bytes(2, 'little') + msg_type
+    msg_nak = ubx_header + msg_nakx + ubx_checksum(msg_nakx)
 
-  while True:
-    serial.reset_input_buffer()
-    serial.write(msg_out)
-    msg_res = serial.read(10)
+    while True:
+        serial.reset_input_buffer()
+        serial.write(msg_out)
+        msg_res = serial.read(10)
 
-    if msg_res == msg_ack:
-      return True
-    elif msg_res == msg_nak:
-      return False
-    elif msg_type == cfg_prt:
-      return None
+        if msg_res == msg_ack:
+            return True
+        elif msg_res == msg_nak:
+            return False
+        elif msg_type == cfg_prt:
+            return None
 
-    time.sleep(0.1)
+        time.sleep(0.1)
 
 # CALCULATE CHECKSUMS FOR UBX MESSAGES
 def ubx_checksum(msg):
-  cs_a = 0x00
-  cs_b = 0x00
+    cs_a = 0x00
+    cs_b = 0x00
 
-  for i in range(len(msg)):
-    cs_a += msg[i]
-    cs_b += cs_a
+    for i in range(len(msg)):
+        cs_a += msg[i]
+        cs_b += cs_a
 
-  checksum = (cs_a & 255).to_bytes(1, 'big') + (cs_b & 255).to_bytes(1, 'big')
-  return checksum
+    checksum = (cs_a & 255).to_bytes(1, 'big') + (cs_b & 255).to_bytes(1, 'big')
+    return checksum
 
 # CALCULATE MAIDENHEAD GRID SQUARE BASED ON CURRENT LAT / LON
-def calc_grid (latitude, longitude):
-  grid_lat_adj = latitude + 90
-  grid_lat_sq = grid_upper[int(grid_lat_adj / 10)]
-  grid_lat_field = str(int(grid_lat_adj%10))
-  grid_lat_rem = (grid_lat_adj - int(grid_lat_adj)) * 60
-  grid_lat_subsq = grid_lower[int(grid_lat_rem / 2.5)]
+def calc_grid(latitude, longitude):
+    grid_lat_adj = latitude + 90
+    grid_lat_sq = grid_upper[int(grid_lat_adj / 10)]
+    grid_lat_field = str(int(grid_lat_adj % 10))
+    grid_lat_rem = (grid_lat_adj - int(grid_lat_adj)) * 60
+    grid_lat_subsq = grid_lower[int(grid_lat_rem / 2.5)]
 
-  grid_lon_adj = longitude + 180
-  grid_lon_sq = grid_upper[int(grid_lon_adj / 20)]
-  grid_lon_field = str(int((grid_lon_adj/2)%10))
-  grid_lon_rem = (grid_lon_adj - int(grid_lon_adj / 2) * 2) * 60
-  grid_lon_subsq = grid_lower[int(grid_lon_rem / 5)]
+    grid_lon_adj = longitude + 180
+    grid_lon_sq = grid_upper[int(grid_lon_adj / 20)]
+    grid_lon_field = str(int((grid_lon_adj/2) % 10))
+    grid_lon_rem = (grid_lon_adj - int(grid_lon_adj / 2) * 2) * 60
+    grid_lon_subsq = grid_lower[int(grid_lon_rem / 5)]
 
-  return grid_lon_sq + grid_lat_sq + grid_lon_field + grid_lat_field + grid_lon_subsq + grid_lat_subsq
+    return grid_lon_sq + grid_lat_sq + grid_lon_field + grid_lat_field + grid_lon_subsq + grid_lat_subsq
 
 # CALCULATE ANGLE FROM MAGNETOMETER DATA
 def comp_degree(x_axis, y_axis):
-  x_axis -= offset_x_axis
-  y_axis -= offset_y_axis
+    x_axis -= offset_x_axis
+    y_axis -= offset_y_axis
 
-  if flip_x_axis:
-    x_axis *= -1
+    if flip_x_axis:
+        x_axis *= -1
 
-  if flip_y_axis:
-    y_axis *= -1
+    if flip_y_axis:
+        y_axis *= -1
 
-  if swap_axis:
-    x_axis, y_axis = y_axis, x_axis
+    if swap_axis:
+        x_axis, y_axis = y_axis, x_axis
 
-  if (x_axis > 0) and (y_axis == 0):
-    angle = declination
-  elif (x_axis < 0) and (y_axis == 0):
-    angle = 180 + declination
-  elif y_axis > 0:
-    angle = 90 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
-  elif y_axis < 0:
-    angle = 270 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
+    if (x_axis > 0) and (y_axis == 0):
+        angle = declination
+    elif (x_axis < 0) and (y_axis == 0):
+        angle = 180 + declination
+    elif y_axis > 0:
+        angle = 90 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
+    elif y_axis < 0:
+        angle = 270 - math.atan(x_axis/y_axis) * 180 / math.pi + declination
 
-  if angle < 0:
-    angle += 360
+    if angle < 0:
+        angle += 360
 
-  if angle >= 360:
-    angle -= 360
+    if angle >= 360:
+        angle -= 360
 
-  return angle
+    return angle
 
 # CALCULATE COMPASS DIRECTION FROM ANGLE
 def comp_direction(degrees):
-  if degrees == -1:
-    direction = '---'
-  elif (degrees < 11.25) or (degrees >= 348.75):
-    direction = 'N'
-  else:
-    for i in range(15):
-      c_angle = comp_angle[i]
+    if degrees == -1:
+        direction = '---'
+    elif (degrees < 11.25) or (degrees >= 348.75):
+        direction = 'N'
+    else:
+        for i in range(15):
+            c_angle = comp_angle[i]
 
-      if (degrees >= c_angle) and (degrees < (c_angle + 22.5)):
-        direction = comp_point[i]
-        break
+            if (degrees >= c_angle) and (degrees < (c_angle + 22.5)):
+                direction = comp_point[i]
+                break
 
-  return direction
+    return direction
 
 # CALCULATE BATTERY PERCENTAGE
 def bat_level(adc_value):
-  bat_percent = 0
+    bat_percent = 0
 
-  for percent in range(10, 1, -1):
-    if adc_value <= bat_curve[percent] and adc_value > bat_curve[percent - 1]:
-      bat_percent = percent * 10
-      break
+    for percent in range(10, 1, -1):
+        if adc_value <= bat_curve[percent] and adc_value > bat_curve[percent - 1]:
+            bat_percent = percent * 10
+            break
 
-  return bat_percent
+    return bat_percent
 
 # SETUP CLOCK
 clock = rtc.RTC()
@@ -339,8 +339,8 @@ bat_palette = fancy.expand_gradient(bat_gradient, 100)
 bat_colors = []
 
 for i in range(100):
-  color = fancy.palette_lookup(bat_palette, i / 100)
-  bat_colors.append(color.pack())
+    color = fancy.palette_lookup(bat_palette, i / 100)
+    bat_colors.append(color.pack())
 
 # REMOVE SPLASH LOGO
 time.sleep(1.5)
@@ -385,16 +385,16 @@ serial = busio.UART(pin_tx, pin_rx, baudrate=38400, timeout=1, receiver_buffer_s
 payload = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
 
 while not ubx_send(cfg_msg, cls_gll, payload):
-  time.sleep(.1)
+    time.sleep(.1)
 
 while not ubx_send(cfg_msg, cls_gsa, payload):
-  time.sleep(.1)
+    time.sleep(.1)
 
 while not ubx_send(cfg_msg, cls_gsv, payload):
-  time.sleep(.1)
+    time.sleep(.1)
 
 while not ubx_send(cfg_msg, cls_vtg, payload):
-  time.sleep(0.1)
+    time.sleep(0.1)
 
 disp_group.remove(message_text)
 
@@ -415,12 +415,12 @@ gps = adafruit_gps.GPS(serial, debug=False)
 
 # WAIT FOR INITIAL GPS FIX
 while not gps.has_fix:
-  gps.update()
-  counter_gps = time.monotonic() - timer_start_gps
-  counter_min = int(counter_gps / 60)
-  counter_sec = int(counter_gps%60)
-  counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
-  time.sleep(0.2)
+    gps.update()
+    counter_gps = time.monotonic() - timer_start_gps
+    counter_min = int(counter_gps / 60)
+    counter_sec = int(counter_gps % 60)
+    counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
+    time.sleep(0.2)
 
 disp_group.remove(message_text)
 
@@ -433,15 +433,15 @@ disp_group.append(message_text)
 
 # WAIT FOR VALID TIME DATA TO SET RTC
 while True:
-  if gps.timestamp_utc.tm_year != 0:
-    break
+    if gps.timestamp_utc.tm_year != 0:
+        break
 
-  gps.update()
-  counter_gps = time.monotonic() - timer_start_gps
-  counter_min = int(counter_gps / 60)
-  counter_sec = int(counter_gps%60)
-  counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
-  time.sleep(0.5)
+    gps.update()
+    counter_gps = time.monotonic() - timer_start_gps
+    counter_min = int(counter_gps / 60)
+    counter_sec = int(counter_gps % 60)
+    counter_text.text = '{:02d}:{:02d}'.format(counter_min, counter_sec)
+    time.sleep(0.5)
 
 # SET RTC TO GPS TIME (GPS REFERENCES UTC)
 clock.datetime = time.struct_time((gps.timestamp_utc.tm_year, gps.timestamp_utc.tm_mon, gps.timestamp_utc.tm_mday, gps.timestamp_utc.tm_hour, gps.timestamp_utc.tm_min, gps.timestamp_utc.tm_sec, 0, -1, -1))
@@ -529,181 +529,181 @@ comp_text = bitmap_label.Label(font, text='   ', color=compass_color, x=char_wid
 disp_group.append(comp_text)
 
 def main():
-  last_alt = None
-  last_comp = None
-  last_grid_sq = None
-  last_lat = None
-  last_lon = None
-  last_tz_date = None
-  last_tz_desc = None
-  last_tz_time = None
-  last_utc_date = None
-  last_utc_time = None
-  last_bat_percent = -1
-  last_bat_time = -60
-  last_sat = -1
-  last_speed = -1
-  last_track = -1
+    last_alt = None
+    last_comp = None
+    last_grid_sq = None
+    last_lat = None
+    last_lon = None
+    last_tz_date = None
+    last_tz_desc = None
+    last_tz_time = None
+    last_utc_date = None
+    last_utc_time = None
+    last_bat_percent = -1
+    last_bat_time = -60
+    last_sat = -1
+    last_speed = -1
+    last_track = -1
 
-  while True:
-    # GET GPS DATA
-    if gps.update():
-      gps_update_text.text = gps_char
+    while True:
+        # GET GPS DATA
+        if gps.update():
+            gps_update_text.text = gps_char
 
-      if gps.latitude is not None:
-        curr_lat = gps.latitude
+            if gps.latitude is not None:
+                curr_lat = gps.latitude
 
-      if gps.longitude is not None:
-        curr_lon = gps.longitude
+            if gps.longitude is not None:
+                curr_lon = gps.longitude
 
-      if gps.altitude_m is not None:
-        curr_alt = int(gps.altitude_m)
-      else:
-        curr_alt = 0
+            if gps.altitude_m is not None:
+                curr_alt = int(gps.altitude_m)
+            else:
+                curr_alt = 0
 
-      # CONVERT FROM KNOTS TO MPH
-      if gps.speed_knots is not None:
-        curr_speed = gps.speed_knots * 1.15078
-      else:
-        curr_speed = 0
+            # CONVERT FROM KNOTS TO MPH
+            if gps.speed_knots is not None:
+                curr_speed = gps.speed_knots * 1.15078
+            else:
+                curr_speed = 0
 
-      if gps.track_angle_deg is not None:
-        curr_track = gps.track_angle_deg
-      else:
-        curr_track = 0
+            if gps.track_angle_deg is not None:
+                curr_track = gps.track_angle_deg
+            else:
+                curr_track = 0
 
-      if gps.satellites is not None:
-        curr_sat = gps.satellites
-      else:
-        curr_sat = 0
+            if gps.satellites is not None:
+                curr_sat = gps.satellites
+            else:
+                curr_sat = 0
 
-      # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
-      curr_grid_sq = calc_grid(curr_lat, curr_lon)
+            # GET CURRENT GRID SQUARE, UPDATE LAT, LON AND GRID LABELS IF DATA HAS CHANGED
+            curr_grid_sq = calc_grid(curr_lat, curr_lon)
 
-      if last_lat != curr_lat:
-        last_lat = curr_lat
-        pad_length = 8 - len('{0:.4f}'.format(curr_lat))
-        lat_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lat)
+            if last_lat != curr_lat:
+                last_lat = curr_lat
+                pad_length = 8 - len('{0:.4f}'.format(curr_lat))
+                lat_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lat)
 
-      if last_lon != curr_lon:
-        last_lon = curr_lon
-        pad_length = 9 - len('{0:.4f}'.format(curr_lon))
-        lon_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lon)
+            if last_lon != curr_lon:
+                last_lon = curr_lon
+                pad_length = 9 - len('{0:.4f}'.format(curr_lon))
+                lon_text.text = ' '*pad_length + '{0:.4f}'.format(curr_lon)
 
-      if last_grid_sq != curr_grid_sq:
-        last_grid_sq = curr_grid_sq
-        grid_text.text = curr_grid_sq
+            if last_grid_sq != curr_grid_sq:
+                last_grid_sq = curr_grid_sq
+                grid_text.text = curr_grid_sq
 
-      # UPDATE ALTITUDE LABELS IF DATA HAS CHANGED
-      if last_alt != curr_alt:
-        last_alt = curr_alt
-        alt_feet = int(curr_alt * 3.28084)
-        meter_pad_length = 5 - len(str(curr_alt))
-        feet_pad_length = 5 - len(str(alt_feet))
-        alt_ft_text.text = ' '*feet_pad_length + str(alt_feet)
-        alt_m_text.text = ' '*meter_pad_length + str(curr_alt)
+            # UPDATE ALTITUDE LABELS IF DATA HAS CHANGED
+            if last_alt != curr_alt:
+                last_alt = curr_alt
+                alt_feet = int(curr_alt * 3.28084)
+                meter_pad_length = 5 - len(str(curr_alt))
+                feet_pad_length = 5 - len(str(alt_feet))
+                alt_ft_text.text = ' '*feet_pad_length + str(alt_feet)
+                alt_m_text.text = ' '*meter_pad_length + str(curr_alt)
 
-      # UPDATE SPEED AND TRACK ANGLE LABELS IF DATA HAS CHANGED
-      if last_speed != curr_speed:
-        last_speed = curr_speed
-        speed = '{0:.1f}'.format(curr_speed)
-        speed_pad_length = 5 - len(speed)
-        speed_text.text = ' '*speed_pad_length + speed
+            # UPDATE SPEED AND TRACK ANGLE LABELS IF DATA HAS CHANGED
+            if last_speed != curr_speed:
+                last_speed = curr_speed
+                speed = '{0:.1f}'.format(curr_speed)
+                speed_pad_length = 5 - len(speed)
+                speed_text.text = ' '*speed_pad_length + speed
 
-      if last_track != curr_track:
-        last_track = curr_track
-        track = '{0:.1f}'.format(curr_track)
-        track_pad_length = 5 - len(track)
-        track_text.text = ' '*track_pad_length + track
+            if last_track != curr_track:
+                last_track = curr_track
+                track = '{0:.1f}'.format(curr_track)
+                track_pad_length = 5 - len(track)
+                track_text.text = ' '*track_pad_length + track
 
-      # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
-      if last_sat != curr_sat:
-        last_sat = curr_sat
-        sat_count_text.text = str(curr_sat)
+            # UPDATE SATELLITE COUNT LABEL IF DATA HAS CHANGED
+            if last_sat != curr_sat:
+                last_sat = curr_sat
+                sat_count_text.text = str(curr_sat)
 
-      time.sleep(0.1)
+            time.sleep(0.1)
 
-    # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
-    curr_datetime = comp_date_time(time.time())
+        # GET CURRENT FORMATTED TIME AND DATE, UPDATE LABELS IF ANY HAVE CHANGED
+        curr_datetime = comp_date_time(time.time())
 
-    if last_utc_time != curr_datetime.utc_time:
-      last_utc_time = curr_datetime.utc_time
-      utc_clock_text.text = curr_datetime.utc_time
+        if last_utc_time != curr_datetime.utc_time:
+            last_utc_time = curr_datetime.utc_time
+            utc_clock_text.text = curr_datetime.utc_time
 
-    if last_utc_date != curr_datetime.utc_date:
-      last_utc_date = curr_datetime.utc_date
-      utc_date_text.text = curr_datetime.utc_date
+        if last_utc_date != curr_datetime.utc_date:
+            last_utc_date = curr_datetime.utc_date
+            utc_date_text.text = curr_datetime.utc_date
 
-    if last_tz_time != curr_datetime.tz_time:
-      last_tz_time = curr_datetime.tz_time
-      tz_clock_text.text = curr_datetime.tz_time
+        if last_tz_time != curr_datetime.tz_time:
+            last_tz_time = curr_datetime.tz_time
+            tz_clock_text.text = curr_datetime.tz_time
 
-    if last_tz_desc != curr_datetime.tz_desc:
-      last_tz_desc = curr_datetime.tz_desc
-      tz_clock_label.text = curr_datetime.tz_desc
+        if last_tz_desc != curr_datetime.tz_desc:
+            last_tz_desc = curr_datetime.tz_desc
+            tz_clock_label.text = curr_datetime.tz_desc
 
-    if last_tz_date != curr_datetime.tz_date:
-      last_tz_date = curr_datetime.tz_date
-      tz_date_text.text = curr_datetime.tz_date
+        if last_tz_date != curr_datetime.tz_date:
+            last_tz_date = curr_datetime.tz_date
+            tz_date_text.text = curr_datetime.tz_date
 
-    # CHECK MAGNETOMETER AND UPDATE LABEL IF DATA HAS CHANGED
-    x, y, _ = comp.magnetic
+        # CHECK MAGNETOMETER AND UPDATE LABEL IF DATA HAS CHANGED
+        x, y, _ = comp.magnetic
 
-    curr_angle = comp_degree(x, y)
-    curr_comp = comp_direction(curr_angle)
+        curr_angle = comp_degree(x, y)
+        curr_comp = comp_direction(curr_angle)
 
-    if last_comp != curr_comp:
-      last_comp = curr_comp
-      pad_length = 3 - len(curr_comp)
-      comp_text.text = ' '*pad_length + curr_comp
+        if last_comp != curr_comp:
+            last_comp = curr_comp
+            pad_length = 3 - len(curr_comp)
+            comp_text.text = ' '*pad_length + curr_comp
 
-    # CHECK BATTERY VOLTAGE ONCE A MINUTE AND CALCULATE PERCENTAGE OF CHARGE
-    curr_bat_time = time.monotonic()
+        # CHECK BATTERY VOLTAGE ONCE A MINUTE AND CALCULATE PERCENTAGE OF CHARGE
+        curr_bat_time = time.monotonic()
 
-    if (curr_bat_time - last_bat_time) >= 60:
-      last_bat_time = curr_bat_time
-      curr_bat = bat.value
-      curr_bat_percent = bat_level(curr_bat)
+        if (curr_bat_time - last_bat_time) >= 60:
+            last_bat_time = curr_bat_time
+            curr_bat = bat.value
+            curr_bat_percent = bat_level(curr_bat)
 
-      # UPDATE BATTERY GAUGE IF PERCENTAGE HAS CHANGED
-      if last_bat_percent != curr_bat_percent:
-        bat_progress_bar.bar_color = bat_colors[curr_bat_percent - 1]
-        bat_progress_bar.value = curr_bat_percent
+            # UPDATE BATTERY GAUGE IF PERCENTAGE HAS CHANGED
+            if last_bat_percent != curr_bat_percent:
+                bat_progress_bar.bar_color = bat_colors[curr_bat_percent - 1]
+                bat_progress_bar.value = curr_bat_percent
 
-      if curr_bat <= bat_cutoff:
-        disp_group.remove(utc_clock_text)
-        disp_group.remove(utc_clock_label)
-        disp_group.remove(utc_date_text)
-        disp_group.remove(tz_clock_text)
-        disp_group.remove(tz_clock_label)
-        disp_group.remove(tz_date_text)
-        disp_group.remove(lat_label)
-        disp_group.remove(lat_text)
-        disp_group.remove(grid_text)
-        disp_group.remove(lon_label)
-        disp_group.remove(lon_text)
-        disp_group.remove(gps_update_text)
-        disp_group.remove(alt_label)
-        disp_group.remove(alt_ft_text)
-        disp_group.remove(alt_ft_label)
-        disp_group.remove(alt_m_text)
-        disp_group.remove(alt_m_label)
-        disp_group.remove(speed_label)
-        disp_group.remove(speed_text)
-        disp_group.remove(track_label)
-        disp_group.remove(track_text)
-        disp_group.remove(sat_count_label)
-        disp_group.remove(sat_count_text)
-        disp_group.remove(comp_text)
+            if curr_bat <= bat_cutoff:
+                disp_group.remove(utc_clock_text)
+                disp_group.remove(utc_clock_label)
+                disp_group.remove(utc_date_text)
+                disp_group.remove(tz_clock_text)
+                disp_group.remove(tz_clock_label)
+                disp_group.remove(tz_date_text)
+                disp_group.remove(lat_label)
+                disp_group.remove(lat_text)
+                disp_group.remove(grid_text)
+                disp_group.remove(lon_label)
+                disp_group.remove(lon_text)
+                disp_group.remove(gps_update_text)
+                disp_group.remove(alt_label)
+                disp_group.remove(alt_ft_text)
+                disp_group.remove(alt_ft_label)
+                disp_group.remove(alt_m_text)
+                disp_group.remove(alt_m_label)
+                disp_group.remove(speed_label)
+                disp_group.remove(speed_text)
+                disp_group.remove(track_label)
+                disp_group.remove(track_text)
+                disp_group.remove(sat_count_label)
+                disp_group.remove(sat_count_text)
+                disp_group.remove(comp_text)
 
-        message_text = 'LOW BATTERY'
-        message_x = int((disp_x - len(message_text) * char_width) / 2)
-        message_text = bitmap_label.Label(font, text=message_text, color=0xFFB000, x=message_x, y=int(disp_y / 2))
-        disp_group.append(message_text)
+                message_text = 'LOW BATTERY'
+                message_x = int((disp_x - len(message_text) * char_width) / 2)
+                message_text = bitmap_label.Label(font, text=message_text, color=0xFFB000, x=message_x, y=int(disp_y / 2))
+                disp_group.append(message_text)
 
-        while True:
-          pass
+                while True:
+                    pass
 
-    gps_update_text.text = ' '
+        gps_update_text.text = ' '
 
 main()
